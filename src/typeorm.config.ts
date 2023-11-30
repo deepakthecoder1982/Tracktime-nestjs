@@ -1,14 +1,22 @@
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
+import * as dotenv from 'dotenv';
+import { join } from 'path';
+
+dotenv.config(); // Load environment variables from .env file
 
 const typeOrmConfig: TypeOrmModuleOptions = {
   type: 'mysql',
-  host: 'localhost', // Replace with your database host
-  port: 3306, // Replace with your database port
-  username: 'root', // Replace with your database username
-  password: '', // Replace with your database password
-  database: 'tracktime_db', // Replace with your database name
-  entities: [__dirname + '/**/*.entity{.ts,.js}'],
-  synchronize: true, // Set to false in production
+  host: process.env.DB_HOST || 'localhost',
+  port: parseInt(process.env.DB_PORT, 10) || 3306,
+  username: process.env.DB_USERNAME || 'root',
+  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_DATABASE || 'tracktime_db',
+  entities: [join(__dirname, '/**/*.entity{.ts,.js}')],
+  ssl: {
+    ca: process.env.MYSQL_ATTR_SSL_CA || '', // Path to SSL CA file
+  },
+  synchronize: process.env.NODE_ENV !== 'production', // Set to false in production
 };
 
 export default typeOrmConfig;
+
