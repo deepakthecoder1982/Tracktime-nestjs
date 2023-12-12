@@ -1,5 +1,5 @@
 // src/app.module.ts
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from './users/user.entity';
 import { UserController } from './users/user.controller';
@@ -8,6 +8,8 @@ import typeOrmConfig from './typeOrm.config';
 import { JwtModule } from '@nestjs/jwt';
 import { ProfileController } from './userProfile/userProfile.controller';
 import { JwtStrategy } from './jwt.strategy';
+import { AuthMiddleware } from './users/auth.middleware';
+import { PaidUser } from './users/paid_users.entity';
 
 // {
 //   type: 'mysql',
@@ -22,13 +24,18 @@ import { JwtStrategy } from './jwt.strategy';
 @Module({
   imports: [
     TypeOrmModule.forRoot(typeOrmConfig),
-    TypeOrmModule.forFeature([User]), 
+    TypeOrmModule.forFeature([User,PaidUser]), 
     JwtModule.register({
       secret: 'crazy-secret',
       signOptions: { expiresIn: '24h' },
     }),
   ],
-  controllers:[UserController,ProfileController],
+  controllers:[UserController,ProfileController,],
   providers:[AuthService,JwtStrategy]
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(AuthMiddleware).forRoutes('/auth/*'); // Apply middleware to routes under '/auth'
+  }
+}
+// export class AppModule {}

@@ -8,12 +8,12 @@ import {
   Req,
   Patch,
   Param,
+  UseGuards,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { InjectRepository } from '@nestjs/typeorm';
 import { TrackTimeStatus, User } from './user.entity';
-import { Repository } from 'typeorm';
-import axios from 'axios'; // For making HTTP requests
+import { PaidUser } from './paid_users.entity';
+import { AuthMiddleware } from './auth.middleware';
 
 @Controller('auth')
 export class UserController {
@@ -46,9 +46,50 @@ export class UserController {
         .json({ message: 'User registered successfully', user: newUser });
       // return { message: 'User registered successfully', user: newUser };
     } catch (error) {
-      return res.status(500).json({ message: 'Failed to register user',"error":error?.response?.message});
+      return res
+        .status(500)
+        .json({
+          message: 'Failed to register user',
+          error: error?.response?.message,
+        });
     }
   }
+  // @UseGuards(AuthMiddleware)
+  @Post('mark-as-paid')
+  async markAsPaid(@Req() req, @Res() res): Promise<any> {
+    const userId = req.headers['user-id'];
+    console.log(userId);
+
+    try {
+      const user = await this.userService.validateUserById(userId);
+
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      const isPaid = await this.userService.isUserPaid(userId);
+      console.log(isPaid)
+      if (!isPaid) {
+        return res
+          .status(400)
+          .json({ message: 'User is already marked as paid' });
+      }
+      // Create a PaidUser entry for the user
+      const paidUserData: Partial<PaidUser> = {
+        user_id: user.userUUID, // Assuming 'id' is the primary key of the User entity
+        username: user.userName, // or other relevant field from the User entity
+      };
+
+      await this.userService.markUserAsPaid(paidUserData);
+
+      return res
+        .status(200)
+        .json({ message: 'User marked as paid successfully' });
+    } catch (error) {
+      return res.status(500).json({ message: 'Failed to mark user as paid' });
+    }
+  }
+  // @UseGuards(AuthMiddleware)
   @Get('/api/config')
   async getConfig(@Req() req, @Res() res): Promise<any> {
     const userId = req.headers['user-id']; // Extract user ID from headers
@@ -61,10 +102,12 @@ export class UserController {
         return res.status(404).json({ message: 'User not found' });
       }
 
+      const isPaidUser = await this.userService.isUserPaid(userId);
       // Construct response with user's config and track time status
       const response = {
         config: {
           trackTimeStatus: userConfig.trackTimeStatus,
+          isPaid:!isPaidUser,
           // Other user-specific config details here
         },
       };
@@ -74,6 +117,7 @@ export class UserController {
       return res.status(500).json({ message: 'Failed to fetch user config' });
     }
   }
+  // @UseGuards(AuthMiddleware)
   @Patch('update-track-status')
   async updateTrackStatus(
     @Req() req,
@@ -85,11 +129,9 @@ export class UserController {
     const adminId = req.headers['user-id'];
     const requestingUser = await this.userService.validateUserById(adminId);
     if (!requestingUser?.isAdmin) {
-      return res
-        .status(403)
-        .json({
-          message: 'Unauthorized: Only admin can update track time status',
-        });
+      return res.status(403).json({
+        message: 'Unauthorized: Only admin can update track time status',
+      });
     }
 
     try {
@@ -127,7 +169,7 @@ export class UserController {
     }
   }
 
-
+  @UseGuards(AuthMiddleware)
   @Post('login')
   async login(
     @Body() loginData: { email: string; password: string },
@@ -142,6 +184,8 @@ export class UserController {
     }
     res.set('user-id', user?.userUUID);
     const token = await this.userService.login(user);
-    return res.status(200).json({msg: 'Login Succesfully!!', access_token: token });
+    return res
+      .status(200)
+      .json({ msg: 'Login Succesfully!!', access_token: token });
   }
 }

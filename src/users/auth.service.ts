@@ -1,12 +1,11 @@
 // auth.service.ts
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import axios from 'axios';
 import { Repository } from 'typeorm';
 import { User } from './user.entity';
-import { plainToClass } from 'class-transformer';
 import { validate } from 'class-validator';
 import { JwtService } from '@nestjs/jwt';
+import { PaidUser } from './paid_users.entity';
 
 @Injectable()
 // private readonly ORY_API_BASE_URL = 'https://inspiring-liskov-jmmrgchi6n.projects.oryapis.com/';
@@ -33,8 +32,21 @@ export class AuthService {
     @InjectRepository(User)
     private userRepository: Repository<User>,
     private readonly jwtService: JwtService,
+    @InjectRepository(PaidUser)
+    private paidUserRepository: Repository<PaidUser>,
   ) {}
 
+  async addToPaidUsers(user: User): Promise<void> {
+    try {
+      const paidUser = new PaidUser();
+      paidUser.user_id = user.userUUID; // Parse the string as a hexadecimal number  or user.userUUID, based on your User entity
+      paidUser.username = user.userName;
+
+      await this.paidUserRepository.save(paidUser);
+    } catch (error) {
+      throw new Error('Failed to add user to paid_users table');
+    }
+  }
   async registerUser(userData: Partial<User>): Promise<User> {
     const newUser = this.userRepository.create(userData);
     const errors = await validate(newUser);
@@ -47,7 +59,7 @@ export class AuthService {
   }
   async validateUser(email: string, password: string): Promise<User | null> {
     const user = await this.userRepository.findOne({ where: { email } });
-
+    console.log(user)
     if (user && user['password'] === password) {
       return user;
     }
@@ -76,7 +88,14 @@ export class AuthService {
       return null; // Return null in case of any error
     }
   }
-  
+  async markUserAsPaid(paidUserData: Partial<PaidUser>): Promise<void> {
+    try {
+      const paidUser = this.paidUserRepository.create(paidUserData);
+      await this.paidUserRepository.save(paidUser);
+    } catch (error) {
+      throw new Error('Failed to mark user as paid');
+    }
+  }
   async getUserConfig(userId: string): Promise<any> {
     try {
       // Logic to fetch user details from your database or storage based on user ID
@@ -113,5 +132,12 @@ export class AuthService {
       isAdmin: true,
     });
     return await this.userRepository.save(adminUser);
+  }
+  async isUserPaid(user_id: string):Promise<boolean> {
+      const paidUser = await this.paidUserRepository.findOne({where :{ user_id}});
+      if(paidUser?.user_id){  
+        return false;
+      } 
+      return true;
   }
 }
