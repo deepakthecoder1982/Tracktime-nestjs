@@ -14,6 +14,9 @@ import { AuthService } from './auth.service';
 import { TrackTimeStatus, User } from './user.entity';
 import { PaidUser } from './paid_users.entity';
 import { AuthMiddleware } from './auth.middleware';
+import * as path from 'path';
+import { Response } from 'express';
+import * as fs from 'fs';
 
 @Controller('auth')
 export class UserController {
@@ -46,12 +49,10 @@ export class UserController {
         .json({ message: 'User registered successfully', user: newUser });
       // return { message: 'User registered successfully', user: newUser };
     } catch (error) {
-      return res
-        .status(500)
-        .json({
-          message: 'Failed to register user',
-          error: error?.response?.message,
-        });
+      return res.status(500).json({
+        message: 'Failed to register user',
+        error: error?.response?.message,
+      });
     }
   }
   // @UseGuards(AuthMiddleware)
@@ -68,7 +69,7 @@ export class UserController {
       }
 
       const isPaid = await this.userService.isUserPaid(userId);
-      console.log(isPaid)
+      console.log(isPaid);
       if (!isPaid) {
         return res
           .status(400)
@@ -107,7 +108,7 @@ export class UserController {
       const response = {
         config: {
           trackTimeStatus: userConfig.trackTimeStatus,
-          isPaid:!isPaidUser,
+          isPaid: !isPaidUser,
           // Other user-specific config details here
         },
       };
@@ -187,5 +188,46 @@ export class UserController {
     return res
       .status(200)
       .json({ msg: 'Login Succesfully!!', access_token: token });
+  }
+
+  // @Get('updates/latest')
+  // async getLatestUpdate(@Res() res: Response) {
+  //     const filePath = path.resolve(__dirname, '../update/trackTime.exe');
+  //     res.sendFile(filePath);
+  // }
+  @Get('version')
+  getServerVersion(@Res() res: Response): any {
+    try {
+      const serverVersion = '1.0.1'; // Replace with the actual version
+      return res.status(200).json({ version: serverVersion });
+    } catch (error) {
+      return res
+        .status(500)
+        .json({ message: 'Failed to retrieve server version' });
+    }
+  }
+
+  @Get('download')
+  downloadUpdatedFile(@Res() res: Response): any {
+    console.log(path.resolve(__dirname, '..',"..","src",'update', 'trackTime.exe'));
+    try {
+      const file = path.resolve(__dirname, '..',"..","src",'update', 'trackTime.exe');
+      const fileName = 'updated_app.exe'; // Replace with the actual file name
+
+      res.download(file, fileName, (err) => {
+        if (err) {
+          return res
+            .status(500)
+            .json({
+              message: 'Failed to download the updated file',
+              error: err.message,
+            });
+        } 
+      });
+    } catch (error) {
+      return res
+        .status(500)
+        .json({ message: 'Failed to serve the updated file' });
+    }
   }
 }

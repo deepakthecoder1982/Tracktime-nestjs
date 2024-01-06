@@ -7,11 +7,11 @@ export class AuthMiddleware implements NestMiddleware {
   constructor(private readonly authService: AuthService) {} // Inject your AuthService
 
   async use(req: Request, res: Response, next: NextFunction) {
-    const excludedRoutes = ['/auth/login', '/auth/register'];
-    // console.log(req.originalUrl)
-
+    const excludedRoutes = ['/auth/login', '/auth/register',"/auth/download","/auth/version"];
+   
     if (excludedRoutes.includes(req.originalUrl)) {
-      // Exclude routes that don't require authentication
+      // Exclude routes that   don't require authentication
+      console.log('Excluded routes')
       return next();
     }
 

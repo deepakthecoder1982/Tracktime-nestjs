@@ -1,5 +1,5 @@
 // src/app.module.ts
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule,RequestMethod } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from './users/user.entity';
 import { UserController } from './users/user.controller';
@@ -10,6 +10,11 @@ import { ProfileController } from './userProfile/userProfile.controller';
 import { JwtStrategy } from './jwt.strategy';
 import { AuthMiddleware } from './users/auth.middleware';
 import { PaidUser } from './users/paid_users.entity';
+import { Organization } from './organisation/organisation.entity';
+import { DesktopApplication } from './organisation/desktop.entity';
+import { Team } from './organisation/team.entity';
+import { OnboardingService } from './organisation/onboarding.service';
+import { OnboardingController } from './organisation/onboarding.controller';
 
 // {
 //   type: 'mysql',
@@ -24,18 +29,30 @@ import { PaidUser } from './users/paid_users.entity';
 @Module({
   imports: [
     TypeOrmModule.forRoot(typeOrmConfig),
-    TypeOrmModule.forFeature([User,PaidUser]), 
+    TypeOrmModule.forFeature([User,PaidUser,Organization,DesktopApplication,Team]), 
     JwtModule.register({
       secret: 'crazy-secret',
       signOptions: { expiresIn: '24h' },
     }),
   ],
-  controllers:[UserController,ProfileController,],
-  providers:[AuthService,JwtStrategy]
+  controllers:[UserController,ProfileController,OnboardingController],
+  providers:[AuthService,JwtStrategy,OnboardingService]
 })
+
+
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(AuthMiddleware).forRoutes('/auth/*'); // Apply middleware to routes under '/auth'
+    consumer
+      .apply(AuthMiddleware)
+      .exclude(
+        { path: '', method: RequestMethod.ALL },
+        { path: '/*', method: RequestMethod.ALL }
+      )
+      .forRoutes(
+        { path: 'auth', method: RequestMethod.ALL },
+        { path: 'auth/*', method: RequestMethod.ALL },
+        // Add other routes that require authentication here
+      );
   }
 }
 // export class AppModule {}

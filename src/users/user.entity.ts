@@ -1,5 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
 import { IsNotEmpty, IsEmail } from 'class-validator';
+import { Organization } from '../organisation/organisation.entity';
 
 export enum TrackTimeStatus {
   Pause = 'Pause',
@@ -39,4 +40,7 @@ export class User {
   };
   @Column({ default: false })
   isAdmin: boolean;
+
+   @ManyToOne(() => Organization, organization => organization.users)
+  organization: Organization;
 }
