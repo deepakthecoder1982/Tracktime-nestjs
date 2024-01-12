@@ -9,4 +9,8 @@ export class CreateDesktopApplicationDto {
   @IsNotEmpty()
   @IsUrl()
   logo: string;
+
+  @IsNotEmpty()
+  @IsString()
+  type: string;
 }

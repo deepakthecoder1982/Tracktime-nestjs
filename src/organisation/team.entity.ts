@@ -1,5 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany, ManyToOne } from 'typeorm';
 import { Organization } from './organisation.entity';
+import { User } from 'src/users/user.entity';
 
 @Entity()
 export class Team {
@@ -9,8 +10,11 @@ export class Team {
   @Column()
   name: string;
 
-  @Column()
-  managerEmail: string;
+  // @Column()
+  // organizationId:string
+
+  @OneToMany(() => User, user => user.team)
+  users: User[];
 
   @ManyToOne(() => Organization, organization => organization.teams)
   organization: Organization;

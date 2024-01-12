@@ -15,6 +15,7 @@ export class OnboardingController {
   async createOrganization(
     @Body() organizationData: CreateOrganizationDto,
   ): Promise<Organization> {
+    // console.log(organizationData);
     return this.onboardingService.createOrganization(organizationData);
   }
 
@@ -22,6 +23,7 @@ export class OnboardingController {
   async createDesktopApplication(
     @Body() appData: CreateDesktopApplicationDto,
   ): Promise<DesktopApplication> {
+    console.log(appData)
     return this.onboardingService.createDesktopApplication(appData);
   }
 

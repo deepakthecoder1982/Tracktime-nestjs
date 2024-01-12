@@ -4,6 +4,8 @@ import { Organization } from './organisation.entity';
 import { DesktopApplication } from './desktop.entity';
 import { Team } from './team.entity';
 import { Repository } from 'typeorm';
+import { User } from 'src/users/user.entity';
+import { CreateTeamDto } from './dto/team.dto';
 
 @Injectable()
 export class OnboardingService {
@@ -14,7 +16,8 @@ export class OnboardingService {
     private desktopAppRepository: Repository<DesktopApplication>,
     @InjectRepository(Team)
     private teamRepository: Repository<Team>,
-    // Other repositories
+    @InjectRepository(User)
+    private userRepository: Repository<User>
   ) {}
 
   async createOrganization(data: any): Promise<Organization> {
@@ -41,14 +44,32 @@ export class OnboardingService {
   }
   
 
-  async createTeam(data: any): Promise<Team> {
-    // const team = this.teamRepository.create(data);
-    const team = new Team();
-    team.name = data.name;
-    team.managerEmail = data.managerEmail;
+  async createTeam(createTeamDto: CreateTeamDto): Promise<Team> {
+    const team = this.teamRepository.create({ name: createTeamDto.name });
 
-    const savedTeam = await this.teamRepository.save(team);
-    console.log('Saved Team:', savedTeam);
-    return savedTeam;
+    if (createTeamDto.organizationId) {
+      const organization = await this.organizationRepository.findOne({ where: { id: createTeamDto.organizationId } });
+      if (!organization) {
+        throw new Error('Organization not found');
+      }
+      team.organization = organization;
+    }
+
+    return this.teamRepository.save(team);
+  }
+  
+  async addUserToTeam(userId: string, teamId: string): Promise<User> {
+    const user = await this.userRepository.findOne({ where: { userUUID: userId } });
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    const team = await this.teamRepository.findOne({ where: { id: teamId } });
+    if (!team) {
+      throw new Error('Team not found');
+      }
+
+    user.team = team;
+    return this.userRepository.save(user);
   }
 }

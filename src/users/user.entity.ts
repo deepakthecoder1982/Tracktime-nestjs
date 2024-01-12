@@ -1,6 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
 import { IsNotEmpty, IsEmail } from 'class-validator';
 import { Organization } from '../organisation/organisation.entity';
+import { Team } from 'src/organisation/team.entity';
 
 export enum TrackTimeStatus {
   Pause = 'Pause',
@@ -43,4 +44,11 @@ export class User {
 
    @ManyToOne(() => Organization, organization => organization.users)
   organization: Organization;
+
+  @ManyToOne(() => Team, team => team.users)
+  team: Team;
+
+  // Include this if you want to store the team ID directly
+  @Column({ nullable: true })
+  teamId: string;
 }
