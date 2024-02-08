@@ -1,7 +1,8 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany } from 'typeorm';
 import { IsNotEmpty, IsEmail } from 'class-validator';
 import { Organization } from '../organisation/organisation.entity';
 import { Team } from 'src/organisation/team.entity';
+import { UserActivity } from './user_activity.entity';
 
 export enum TrackTimeStatus {
   Pause = 'Pause',
@@ -37,12 +38,12 @@ export class User {
   @Column('json', { nullable: true })
   config: {
     trackTimeStatus: TrackTimeStatus;
-    // You can add more configuration options here if needed
   };
+  
   @Column({ default: false })
   isAdmin: boolean;
 
-   @ManyToOne(() => Organization, organization => organization.users)
+  @ManyToOne(() => Organization, organization => organization.users)
   organization: Organization;
 
   @ManyToOne(() => Team, team => team.users)
@@ -51,4 +52,7 @@ export class User {
   // Include this if you want to store the team ID directly
   @Column({ nullable: true })
   teamId: string;
+
+  @OneToMany(() => UserActivity, userActivity => userActivity.user_uid)
+  userActivities: UserActivity[];
 }

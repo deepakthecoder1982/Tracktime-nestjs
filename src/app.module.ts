@@ -15,6 +15,7 @@ import { DesktopApplication } from './organisation/desktop.entity';
 import { Team } from './organisation/team.entity';
 import { OnboardingService } from './organisation/onboarding.service';
 import { OnboardingController } from './organisation/onboarding.controller';
+import { UserActivity } from './users/user_activity.entity';
 
 // {
 //   type: 'mysql',
@@ -29,7 +30,7 @@ import { OnboardingController } from './organisation/onboarding.controller';
 @Module({
   imports: [
     TypeOrmModule.forRoot(typeOrmConfig),
-    TypeOrmModule.forFeature([User,PaidUser,Organization,DesktopApplication,Team]), 
+    TypeOrmModule.forFeature([User,PaidUser,Organization,DesktopApplication,Team,UserActivity]), 
     JwtModule.register({
       secret: 'crazy-secret',
       signOptions: { expiresIn: '24h' },

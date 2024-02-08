@@ -140,4 +140,10 @@ export class AuthService {
       } 
       return true;
   }
+
+  async getUsersByOrganization(organizationId: string): Promise<User[]> {
+    return this.userRepository.find({
+        where: { organizationUUID: organizationId },
+    });
+}
 }

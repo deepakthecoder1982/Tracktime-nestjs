@@ -1,9 +1,17 @@
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsUUID } from "class-validator";
 
 export class CreateOrganizationDto {
   @IsNotEmpty()
   @IsString()
   name: string;
+
+  @IsOptional()
+  @IsString()
+  logo?: string;
+
+  @IsNotEmpty()
+  @IsString()
+  country: string;
 
   @IsNotEmpty()
   @IsString()

@@ -9,15 +9,21 @@ export class Organization {
 
   @Column()
   name: string;
-  
+
+  @Column({ nullable: true })
+  logo: string; // Assuming there's a logo field based on the keys
+
+  @Column()
+  country: string; // Assuming there's a country field
+
+  @Column('int')
+  teamSize: number; // Changed type to 'int' to reflect 'INTEGER'
+
+  @Column()
+  type: string; // Assuming 'organization_type' maps to this
+
   @OneToMany(() => User, user => user.organization)
   users: User[];
-
-  @Column()
-  type: string;
-
-  @Column()
-  teamSize: string;
 
   @OneToMany(() => Team, team => team.organization)
   teams: Team[];

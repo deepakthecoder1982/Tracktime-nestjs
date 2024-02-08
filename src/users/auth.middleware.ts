@@ -18,6 +18,7 @@ export class AuthMiddleware implements NestMiddleware {
     const userId = req?.headers['user-id']; // Destructure the first element (if it's an array)
     // const userId = "335175ea-acfd-4fc3-aa22-22b45e1dddcc"
     const token = req.headers?.authorization;
+    console.log(userId,token)
     if (!token || !userId) {
       return res
         .status(401)

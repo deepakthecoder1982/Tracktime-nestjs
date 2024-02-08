@@ -19,17 +19,21 @@ import { Response } from 'express';
 import * as fs from 'fs';
 
 @Controller('auth')
+
 export class UserController {
+
   constructor(private readonly userService: AuthService) {}
 
   @Post('register')
   async registerUser(
     @Body() userData: Partial<User>,
     @Res() res,
+    @Req() req,
   ): Promise<any> {
     const isAdmin = userData.isAdmin !== undefined ? userData.isAdmin : false;
-
-    try {
+    const organizationId = req?.headers["organizationId"] 
+    
+    try { 
       // Default config for new users
       const defaultConfig = {
         trackTimeStatus: TrackTimeStatus.Resume,
@@ -39,6 +43,7 @@ export class UserController {
       const newUser = await this.userService.registerUser({
         ...userData,
         isAdmin,
+        organizationUUID:organizationId,
         config: defaultConfig,
       });
       console.log(newUser);
@@ -69,7 +74,9 @@ export class UserController {
       }
 
       const isPaid = await this.userService.isUserPaid(userId);
+      
       console.log(isPaid);
+
       if (!isPaid) {
         return res
           .status(400)
@@ -128,7 +135,10 @@ export class UserController {
   ): Promise<any> {
     // Check if the requesting user is an admin
     const adminId = req.headers['user-id'];
+    console.log(adminId)
+    
     const requestingUser = await this.userService.validateUserById(adminId);
+    console.log(requestingUser)
     if (!requestingUser?.isAdmin) {
       return res.status(403).json({
         message: 'Unauthorized: Only admin can update track time status',
@@ -230,4 +240,34 @@ export class UserController {
         .json({ message: 'Failed to serve the updated file' });
     }
   }
+
+@Get('organization/users')
+@UseGuards(AuthMiddleware)
+async getOrganizationUsers(@Req() req, @Res() res): Promise<any> {
+    // Extract user ID and organization ID from request headers
+    const userId = req.headers['user-id'];
+    const organizationId = req.headers['organization-id']; // Assuming organization ID is passed in headers
+
+    console.log(userId,organizationId);
+    try {
+        // Validate the user ID and check if the user is an admin of the requested organization
+        const requestingUser = await this.userService.validateUserById(userId);
+
+        if (!requestingUser) {
+            return res.status(404).json({ message: 'Requesting user not found' });
+        }
+
+        if (!requestingUser.isAdmin || requestingUser.organizationUUID !== organizationId) {
+            return res.status(403).json({ message: 'Unauthorized: Access is restricted to admins of the specified organization' });
+        }
+
+        // Fetch and return data of all users within the specified organization
+        const usersInOrganization = await this.userService.getUsersByOrganization(organizationId);
+
+        return res.status(200).json({ message: 'Organization users fetched successfully', users: usersInOrganization });
+    } catch (error) {
+        return res.status(500).json({ message: 'Failed to fetch organization users', error: error?.message });
+    }
+}
+
 }
