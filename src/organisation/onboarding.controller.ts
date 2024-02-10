@@ -64,7 +64,7 @@ export class OnboardingController {
     @Param('id') id: string,
     @Res() res: Response,
     @Query("page") page :number = 1,
-    @Query("limit") Limit:number = 2,
+    @Query("limit") Limit:number = 10,
   ): Promise<Response> {
     try {
       
