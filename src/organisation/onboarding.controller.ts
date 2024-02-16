@@ -63,25 +63,22 @@ export class OnboardingController {
   async getUserDetails(
     @Param('id') id: string,
     @Res() res: Response,
-    @Query("page") page :number = 1,
-    @Query("limit") Limit:number = 10,
+    @Query('page') page: number = 1,
+    @Query('limit') Limit: number = 10,
   ): Promise<Response> {
     try {
-      
-      const user = await this.onboardingService.getUserDetails(id,page,Limit);
+      const user = await this.onboardingService.getUserDetails(id, page, Limit);
       const dataCount = await this.onboardingService.getUserDataCount(id);
-      console.log(user,dataCount);
-      return res.status(200).json({user,dataCount});
+      console.log(user, dataCount);
+      return res.status(200).json({ user, dataCount });
     } catch (error) {
       if (error.message === 'User not found') {
         return res.status(404).json({ message: error.message });
       }
-      return res
-        .status(500)
-        .json({
-          message: 'Failed to fetch user details',
-          error: error.message,
-        });
+      return res.status(500).json({
+        message: 'Failed to fetch user details',
+        error: error.message,
+      });
     }
   }
 
@@ -117,12 +114,10 @@ export class OnboardingController {
         status,
       );
 
-      return res
-        .status(200)
-        .json({
-          message: 'Track time status updated successfully',
-          updatedUserData,
-        });
+      return res.status(200).json({
+        message: 'Track time status updated successfully',
+        updatedUserData,
+      });
     } catch (error) {
       return res
         .status(500)

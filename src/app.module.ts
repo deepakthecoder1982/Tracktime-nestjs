@@ -1,5 +1,10 @@
 // src/app.module.ts
-import { MiddlewareConsumer, Module, NestModule,RequestMethod } from '@nestjs/common';
+import {
+  MiddlewareConsumer,
+  Module,
+  NestModule,
+  RequestMethod,
+} from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from './users/user.entity';
 import { UserController } from './users/user.controller';
@@ -16,6 +21,10 @@ import { Team } from './organisation/team.entity';
 import { OnboardingService } from './organisation/onboarding.service';
 import { OnboardingController } from './organisation/onboarding.controller';
 import { UserActivity } from './users/user_activity.entity';
+import { Teams } from './organisation/teams.entity';
+import { TeamMember } from './organisation/teammembers.entity';
+import { TeamAndTeamMemberController } from './organisation/teams.controller';
+import { teamAndTeamMemberService } from './organisation/teams.service';
 
 // {
 //   type: 'mysql',
@@ -30,24 +39,41 @@ import { UserActivity } from './users/user_activity.entity';
 @Module({
   imports: [
     TypeOrmModule.forRoot(typeOrmConfig),
-    TypeOrmModule.forFeature([User,PaidUser,Organization,DesktopApplication,Team,UserActivity]), 
+    TypeOrmModule.forFeature([
+      User,
+      PaidUser,
+      Organization,
+      DesktopApplication,
+      Team,
+      UserActivity,
+      Teams,
+      TeamMember,
+    ]),
     JwtModule.register({
       secret: 'crazy-secret',
       signOptions: { expiresIn: '24h' },
     }),
   ],
-  controllers:[UserController,ProfileController,OnboardingController],
-  providers:[AuthService,JwtStrategy,OnboardingService]
+  controllers: [
+    UserController,
+    ProfileController,
+    OnboardingController,
+    TeamAndTeamMemberController,
+  ],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    OnboardingService,
+    teamAndTeamMemberService,
+  ],
 })
-
-
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
       .apply(AuthMiddleware)
       .exclude(
         { path: '', method: RequestMethod.ALL },
-        { path: '/*', method: RequestMethod.ALL }
+        { path: '/*', method: RequestMethod.ALL },
       )
       .forRoutes(
         { path: 'auth', method: RequestMethod.ALL },
