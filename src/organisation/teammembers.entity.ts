@@ -1,8 +1,19 @@
-import { Entity, PrimaryColumn, Column, CreateDateColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryColumn,
+  Column,
+  CreateDateColumn,
+  JoinColumn,
+  ManyToOne,
+} from 'typeorm';
+import { Teams } from './teams.entity';
 
 @Entity('teammembers')
 export class TeamMember {
   @PrimaryColumn({ type: 'uuid' })
+  member_uuid: string;
+
+  @Column({ type: 'uuid' })
   team_uuid: string;
 
   @Column()
@@ -26,6 +37,9 @@ export class TeamMember {
   @Column({ type: 'uuid' })
   policy_uuid: string;
 
-  @CreateDateColumn({ name: 'timestamp' }) // Specifies the column name as 'timestamp'
+  @CreateDateColumn({ name: 'timestamp' })
   timestamp: Date;
+  @ManyToOne(() => Teams, (teams) => teams.teamMembers)
+  @JoinColumn({ name: 'team_uuid' })
+  team: Teams;
 }

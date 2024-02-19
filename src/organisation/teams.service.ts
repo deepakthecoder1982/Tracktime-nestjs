@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Teams } from './teams.entity';
 import { TeamMember } from './teammembers.entity';
@@ -38,12 +38,35 @@ export class teamAndTeamMemberService {
     return this.teamRepository.findOne({ where: { team_uuid } });
   }
   async deleteById(team_uuid: UUID) {
+    this.teamMemberRepository.delete({ team_uuid });
     return await this.teamRepository.delete({ team_uuid });
   }
+  async getTeamDetailsByTeamId(team_uuid: string): Promise<Teams[]> {
+    console.log(`getTeamDetails called with team_uuid: ${team_uuid}`);
+    try {
+      const teams = await this.teamRepository
+        .createQueryBuilder('team')
+        .leftJoinAndSelect('team.teamMembers', 'teammember')
+        .where('team.team_uuid = :team_uuid', { team_uuid })
+        .getMany();
+
+      console.log(`Found teams for team_uuid ${team_uuid}:`, teams); // Log the result
+      return teams; // This will return teams with their team members
+    } catch (error) {
+      console.error(
+        'Error fetching team details for team_uuid:',
+        team_uuid,
+        error,
+      );
+      throw new InternalServerErrorException('Error fetching team details');
+    }
+  }
+
   async addTeamMembers(
     CreateTeamMembersDto: CreateTeamMembersDto,
   ): Promise<TeamMember> {
     const team = this.teamMemberRepository.create({
+      member_uuid: CreateTeamMembersDto.member_uuid,
       team_uuid: CreateTeamMembersDto.team_uuid,
       team_name: CreateTeamMembersDto.team_name,
       user_uuid: CreateTeamMembersDto.user_uuid,
@@ -61,11 +84,11 @@ export class teamAndTeamMemberService {
   async getTeamMembers(): Promise<TeamMember[]> {
     return this.teamMemberRepository.find();
   }
-  async updateTeamMembersById(team_uuid: UUID, dto: CreateTeamMembersDto) {
-    await this.teamMemberRepository.update(team_uuid, dto);
-    return this.teamMemberRepository.findOne({ where: { team_uuid } });
+  async updateTeamMembersById(member_uuid: UUID, dto: CreateTeamMembersDto) {
+    await this.teamMemberRepository.update(member_uuid, dto);
+    return this.teamMemberRepository.findOne({ where: { member_uuid } });
   }
-  async deleteTeamMembersById(team_uuid: UUID) {
-    return await this.teamMemberRepository.delete({ team_uuid });
+  async deleteTeamMembersById(member_uuid: UUID) {
+    return await this.teamMemberRepository.delete({ member_uuid });
   }
 }

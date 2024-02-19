@@ -1,4 +1,5 @@
-import { Entity, PrimaryColumn, Column } from 'typeorm';
+import { Entity, PrimaryColumn, Column, OneToMany } from 'typeorm';
+import { TeamMember } from './teammembers.entity';
 
 @Entity('teams')
 export class Teams {
@@ -16,4 +17,7 @@ export class Teams {
 
   @Column()
   status: number;
+
+  @OneToMany(() => TeamMember, (teamMember) => teamMember.team)
+  teamMembers: TeamMember[];
 }

@@ -36,6 +36,10 @@ export class TeamAndTeamMemberController {
   deleteById(@Param('id') id: UUID) {
     return this.teamAndTeamMemberService.deleteById(id);
   }
+  @Get('/getteamdetails/:id') // get team details by team member id
+  async getTeamDetails(@Param('id') id: string) {
+    return await this.teamAndTeamMemberService.getTeamDetailsByTeamId(id);
+  }
   @Post('addteammember')
   async addTeamMembers(
     @Body() CreateTeamMembersDto: CreateTeamMembersDto,
