@@ -25,6 +25,10 @@ import { Teams } from './organisation/teams.entity';
 import { TeamMember } from './organisation/teammembers.entity';
 import { TeamAndTeamMemberController } from './organisation/teams.controller';
 import { teamAndTeamMemberService } from './organisation/teams.service';
+import { RegisteredUser } from './organisation/registeredusers.entity';
+import { Organizations } from './organisation/organization.entity';
+import { Subscription } from './organisation/subscription.entity';
+import { EmailReportSettings } from './organisation/emailreportsetting.entity';
 
 // {
 //   type: 'mysql',
@@ -48,6 +52,10 @@ import { teamAndTeamMemberService } from './organisation/teams.service';
       UserActivity,
       Teams,
       TeamMember,
+      RegisteredUser,
+      Organizations,
+      Subscription,
+      EmailReportSettings
     ]),
     JwtModule.register({
       secret: 'crazy-secret',
