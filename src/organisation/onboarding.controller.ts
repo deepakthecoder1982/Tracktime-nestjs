@@ -37,11 +37,30 @@ export class OnboardingController {
   async getScreenShots(@Res() res:Response){
       try {
         const images = await this.onboardingService.fetchScreenShot();
-        res.status(200).json(images);
-      } catch (error) {
+        const userData = await this.onboardingService.getAllUserActivityData();
+        const getUsersInDb = await this.onboardingService.findAllUsers();
+
+        let finalData = userData.map(user=>{
+          images.forEach(image=>{
+            const imgUrlExtracted = image?.key.split("/")[1].split("|")[0];
+            if(user.activity_uuid === imgUrlExtracted){
+              user["ImgData"] = image;
+            }
+          })
+          
+          getUsersInDb.forEach(u=>{
+              if(u.userUUID === user.user_uid){
+                user["user_name"] = u.userName;
+              }
+          })
+          return user;
+        })
+        // console.log(finalData);
+        res.status(200).json(finalData);
+      } catch (error) { 
         res.status(400).json({message:"Failed to fetch images from wasabi.",error:error?.message});
       }
-  }
+  } 
 
   @Post('desktop-application')
   async createDesktopApplication(

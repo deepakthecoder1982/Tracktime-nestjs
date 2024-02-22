@@ -36,7 +36,7 @@ export class OnboardingService {
       accessKeyId:this.ConfigureService.get<string>('WASABI_ACCESS_KEY_ID'),
       secretAccessKey:this.ConfigureService.get<string>('WASABI_SECRET_ACCESS_KEY'),
       region:this.ConfigureService.get<string>('WASABI_REGION'),
-    });
+    }); 
   } 
 
   async fetchScreenShot():Promise<any[]>{
@@ -206,5 +206,11 @@ export class OnboardingService {
       throw new Error(`Failed to update user configuration: ${error.message}`)
     }
     
+  }
+
+  async getAllUserActivityData():Promise<UserActivity[]>{
+    const userData = await this.userActivityRepository.find();
+   
+    return userData;
   }
 }
