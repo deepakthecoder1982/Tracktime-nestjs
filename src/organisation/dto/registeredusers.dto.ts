@@ -7,9 +7,6 @@ import {
 } from 'class-validator';
 export class registeredUsersDto {
   @IsUUID()
-  user_uid: string;
-
-  @IsUUID()
   organization_id: string;
 
   @IsString()

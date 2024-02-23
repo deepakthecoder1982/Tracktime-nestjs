@@ -1,9 +1,9 @@
-import { Entity, PrimaryColumn, Column, OneToMany } from 'typeorm';
+import { Entity, Column, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { TeamMember } from './teammembers.entity';
 
 @Entity('teams')
 export class Teams {
-  @PrimaryColumn({ type: 'uuid' })
+  @PrimaryGeneratedColumn('uuid')
   team_uuid: string;
 
   @Column({ type: 'uuid' })

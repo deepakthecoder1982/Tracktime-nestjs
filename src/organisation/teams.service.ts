@@ -1,3 +1,5 @@
+import { CreateUniqueAppsDto } from './dto/uniqueapps.dto';
+import { CreateCategoryDto } from './dto/category.dto';
 import { EmailReportSettingDto } from './dto/emailreportsetting.dto';
 import { SubscriptionDto } from './dto/subscription.dto';
 import { registeredUsersDto } from './dto/registeredusers.dto';
@@ -16,7 +18,9 @@ import { CreateOrganizationDto } from './dto/organizations.dto';
 import { updateOrgDto } from './dto/updateorg.dto';
 import { Subscription } from './subscription.entity';
 import { EmailReportSettings } from './emailreportsetting.entity';
-
+import { Category } from './category.entity';
+import { UniqueApps } from './uniqueapps.entity';
+import { v4 as uuidv4 } from 'uuid';
 @Injectable()
 export class teamAndTeamMemberService {
   constructor(
@@ -32,11 +36,15 @@ export class teamAndTeamMemberService {
     private subsRepository: Repository<Subscription>,
     @InjectRepository(EmailReportSettings)
     private emailreportRepository: Repository<EmailReportSettings>,
+    @InjectRepository(Category)
+    private categoryRepository: Repository<Category>,
+    @InjectRepository(UniqueApps)
+    private UniqueAppsRepository: Repository<UniqueApps>,
   ) {}
   //create team
   async createTeam(createTeamsDto: CreateTeamsDto): Promise<Teams> {
     const team = this.teamRepository.create({
-      team_uuid: createTeamsDto.team_uuid,
+      team_uuid: uuidv4(),
       organization_id: createTeamsDto.organization_id,
       policy_uuid: createTeamsDto.policy_uuid,
       name: createTeamsDto.name,
@@ -84,7 +92,7 @@ export class teamAndTeamMemberService {
     CreateTeamMembersDto: CreateTeamMembersDto,
   ): Promise<TeamMember> {
     const team = this.teamMemberRepository.create({
-      member_uuid: CreateTeamMembersDto.member_uuid,
+      member_uuid: uuidv4(),
       team_uuid: CreateTeamMembersDto.team_uuid,
       team_name: CreateTeamMembersDto.team_name,
       user_uuid: CreateTeamMembersDto.user_uuid,
@@ -114,7 +122,7 @@ export class teamAndTeamMemberService {
     registeredUsersDto: registeredUsersDto,
   ): Promise<RegisteredUser> {
     const user = this.registeredUserRepository.create({
-      user_uid: registeredUsersDto.user_uid,
+      user_uid: uuidv4(),
       organization_id: registeredUsersDto.organization_id,
       first_name: registeredUsersDto.first_name,
       last_name: registeredUsersDto.last_name,
@@ -152,7 +160,7 @@ export class teamAndTeamMemberService {
     return this.orgRepository.findOne({ where: { organization_id } });
   }
   //delete organization
-  async deleteOrganizationById(organization_id: UUID) { 
+  async deleteOrganizationById(organization_id: UUID) {
     return await this.orgRepository.delete({ organization_id });
   }
   //subscription
@@ -207,5 +215,80 @@ export class teamAndTeamMemberService {
   }
   async deleteReportById(user_uid: UUID) {
     return await this.emailreportRepository.delete({ user_uid });
+  }
+  //category
+  async createCategory(
+    CreateCategoryDto: CreateCategoryDto,
+  ): Promise<Category> {
+    const category = this.categoryRepository.create({
+      category_uuid: uuidv4(),
+      parent_category: CreateCategoryDto.parent_category,
+      category_name: CreateCategoryDto.category_name,
+    });
+
+    const savedCategory = await this.categoryRepository.save(category);
+    console.log('Saved Report:', savedCategory);
+    return savedCategory;
+  }
+  async getCategories(): Promise<Category[]> {
+    return this.categoryRepository.find();
+  }
+  async updateCategoryById(category_uuid: string, dto: CreateCategoryDto) {
+    await this.categoryRepository.update(category_uuid, dto);
+    return this.categoryRepository.findOne({ where: { category_uuid } });
+  }
+  async deleteCategoryById(category_uuid: string) {
+    return await this.categoryRepository.delete({ category_uuid });
+  }
+  //unique apps
+  async findCategoryByid(category_uuid: string) {
+    return await this.categoryRepository.findOne({ where: { category_uuid } });
+  }
+  async createApps(
+    CreateUniqueAppsDto: CreateUniqueAppsDto,
+  ): Promise<UniqueApps> {
+    const obj = this.findCategoryByid(CreateUniqueAppsDto.category_uuid); //function call to get category_name and parent_category on the basis of uuid
+
+    const categoryname = (await obj).category_name;
+    const parentcategory = (await obj).parent_category;
+
+    console.log((await obj).category_name);
+    console.log((await obj).parent_category);
+
+    const apps = this.UniqueAppsRepository.create({
+      u_apps_uuid: uuidv4(),
+      app_name: CreateUniqueAppsDto.app_name,
+      description: CreateUniqueAppsDto.description,
+      type: CreateUniqueAppsDto.type,
+      category_uuid: CreateUniqueAppsDto.category_uuid,
+      category_name: categoryname,
+      parent_category: parentcategory,
+    });
+
+    const savedApp = await this.UniqueAppsRepository.save(apps);
+    console.log('Saved Apps:', savedApp);
+    return savedApp;
+  }
+  async getApps(): Promise<UniqueApps[]> {
+    return this.UniqueAppsRepository.find();
+  }
+  async updateAppById(u_apps_uuid: string, dto: CreateUniqueAppsDto) {
+    await this.UniqueAppsRepository.update(u_apps_uuid, dto);
+    return this.UniqueAppsRepository.findOne({ where: { u_apps_uuid } });
+  }
+  async deleteAppById(u_apps_uuid: string) {
+    return await this.UniqueAppsRepository.delete({ u_apps_uuid });
+  }
+  async getCategoryAppsByNameOrParent(
+    categoryName?: string,
+    parentCategory?: string,
+  ) {
+    const whereCondition = parentCategory
+      ? [{ category_name: categoryName }, { parent_category: parentCategory }]
+      : { category_name: categoryName };
+
+    return await this.UniqueAppsRepository.find({
+      where: whereCondition,
+    });
   }
 }

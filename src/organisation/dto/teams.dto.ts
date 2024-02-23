@@ -2,9 +2,6 @@ import { IsNotEmpty, IsString, IsUUID } from 'class-validator';
 
 export class CreateTeamsDto {
   @IsUUID()
-  team_uuid: string;
-
-  @IsUUID()
   @IsNotEmpty()
   organization_id: string;
 

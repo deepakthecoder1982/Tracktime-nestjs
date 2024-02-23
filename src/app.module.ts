@@ -29,6 +29,8 @@ import { RegisteredUser } from './organisation/registeredusers.entity';
 import { Organizations } from './organisation/organization.entity';
 import { Subscription } from './organisation/subscription.entity';
 import { EmailReportSettings } from './organisation/emailreportsetting.entity';
+import { Category } from './organisation/category.entity';
+import { UniqueApps } from './organisation/uniqueapps.entity';
 
 // {
 //   type: 'mysql',
@@ -55,7 +57,9 @@ import { EmailReportSettings } from './organisation/emailreportsetting.entity';
       RegisteredUser,
       Organizations,
       Subscription,
-      EmailReportSettings
+      EmailReportSettings,
+      Category,
+      UniqueApps,
     ]),
     JwtModule.register({
       secret: 'crazy-secret',

@@ -7,6 +7,7 @@ import {
   Param,
   Post,
   Put,
+  Query,
 } from '@nestjs/common';
 import { teamAndTeamMemberService } from './teams.service';
 import { Teams } from './teams.entity';
@@ -21,6 +22,10 @@ import { SubscriptionDto } from './dto/subscription.dto';
 import { Subscription } from './subscription.entity';
 import { EmailReportSettingDto } from './dto/emailreportsetting.dto';
 import { EmailReportSettings } from './emailreportsetting.entity';
+import { CreateCategoryDto } from './dto/category.dto';
+import { Category } from './category.entity';
+import { CreateUniqueAppsDto } from './dto/uniqueapps.dto';
+import { UniqueApps } from './uniqueapps.entity';
 @Controller('team')
 export class TeamAndTeamMemberController {
   constructor(
@@ -140,5 +145,54 @@ export class TeamAndTeamMemberController {
   @Delete('/deletereport/:id')
   deleteReportById(@Param('id') id: UUID) {
     return this.teamAndTeamMemberService.deleteReportById(id);
+  }
+  //category
+  @Post('/createcategory')
+  async createCategory(
+    @Body() CreateCategoryDto: CreateCategoryDto,
+  ): Promise<Category> {
+    return this.teamAndTeamMemberService.createCategory(CreateCategoryDto);
+  }
+  @Get('/getcategories')
+  async getCategories(): Promise<Category[]> {
+    return this.teamAndTeamMemberService.getCategories();
+  }
+  @Put('/updatecategory/:id')
+  updateCategoryById(@Param('id') id: string, @Body() dto: CreateCategoryDto) {
+    return this.teamAndTeamMemberService.updateCategoryById(id, dto);
+  }
+  @Delete('/deletecategory/:id')
+  deleteCategoryById(@Param('id') id: string) {
+    return this.teamAndTeamMemberService.deleteCategoryById(id);
+  }
+  //unique apps
+  @Post('/createuniqueapps')
+  async createApps(
+    @Body() CreateUniqueAppsDto: CreateUniqueAppsDto,
+  ): Promise<UniqueApps> {
+    return this.teamAndTeamMemberService.createApps(CreateUniqueAppsDto);
+  }
+  @Get('/getapps')
+  async getApps(): Promise<UniqueApps[]> {
+    return this.teamAndTeamMemberService.getApps();
+  }
+  @Put('/updateapps/:id')
+  updateAppById(@Param('id') id: string, @Body() dto: CreateUniqueAppsDto) {
+    return this.teamAndTeamMemberService.updateAppById(id, dto);
+  }
+  @Delete('/deleteapps/:id')
+  deleteAppById(@Param('id') id: string) {
+    return this.teamAndTeamMemberService.deleteAppById(id);
+  }
+  //input - category or parent category name outputs apps in that category
+  @Get('/getcategoryapps')
+  getCategoryAppsByNameOrParent(
+    @Query('category_name') categoryName?: string,
+    @Query('parent_category') parentCategory?: string,
+  ) {
+    return this.teamAndTeamMemberService.getCategoryAppsByNameOrParent(
+      categoryName,
+      parentCategory,
+    );
   }
 }

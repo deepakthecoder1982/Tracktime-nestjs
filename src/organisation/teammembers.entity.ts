@@ -1,16 +1,16 @@
 import {
   Entity,
-  PrimaryColumn,
   Column,
   CreateDateColumn,
   JoinColumn,
   ManyToOne,
+  PrimaryGeneratedColumn,
 } from 'typeorm';
 import { Teams } from './teams.entity';
 
 @Entity('teammembers')
 export class TeamMember {
-  @PrimaryColumn({ type: 'uuid' })
+  @PrimaryGeneratedColumn('uuid')
   member_uuid: string;
 
   @Column({ type: 'uuid' })
