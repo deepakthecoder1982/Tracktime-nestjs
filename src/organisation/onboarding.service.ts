@@ -129,7 +129,7 @@ export class OnboardingService {
     console.log('Updated User:', updatedUser);
     return updatedUser;
 
-  }
+  } 
   async findAllUsers(): Promise<User[]> {
     return await this.userRepository.find();
   }
@@ -138,11 +138,30 @@ export class OnboardingService {
   async getUserDetails(id: string,page:number,limit:number): Promise<UserActivity[]> {
     // If findOneBy is not recognized or you prefer a more explicit approach, use findOne:
     //apply here the logic for sorting the data in timing format and then get's teh data wanted
-    const userUnsortedData = await this.userActivityRepository.find({where:{user_uid:id}});
+    const FetchedData = await this.userActivityRepository.find({where:{user_uid:id}});
+    const ImgData = await this.fetchScreenShot();
+    const userData = await this.findAllUsers();
 
-    if (!userUnsortedData) {
+    if (!FetchedData) {
       throw new Error('User not found');
     }
+
+    const userUnsortedData = FetchedData?.map(userD=>{
+      ImgData.forEach(img=>{
+        let imgAcctivity = img?.key.split("/")[1].split("|")[0];
+        if(userD.activity_uuid === imgAcctivity){
+          userD["ImgData"] = img;
+        }
+      }) 
+      userData.map(user=>{
+        if(user.userUUID === userD.user_uid){
+          userD["user_name"] = user.userName;
+        }
+      })
+      return userD;
+    })
+
+   
 
     userUnsortedData?.sort((a,b)=> 
     {

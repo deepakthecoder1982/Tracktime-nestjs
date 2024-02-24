@@ -24,7 +24,7 @@ export class OnboardingController {
   constructor(
     private readonly onboardingService: OnboardingService,
     private readonly userService: AuthService,
-  ) {}
+  ) {} 
 
   @Post('organization')
   async createOrganization(
@@ -99,7 +99,7 @@ export class OnboardingController {
       
       const user = await this.onboardingService.getUserDetails(id,page,Limit);
       const dataCount = await this.onboardingService.getUserDataCount(id);
-      console.log(user,dataCount);
+      // console.log(user,dataCount);
       return res.status(200).json({user,dataCount});
     } catch (error) {
       if (error.message === 'User not found') {
