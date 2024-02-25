@@ -80,6 +80,24 @@ export class OnboardingController {
   async getAllUsers(@Res() res: Response): Promise<Response> {
     try {
       const users = await this.onboardingService.findAllUsers();
+      const images = await this.onboardingService.fetchScreenShot();
+      images.sort((a,b)=>{
+        const timeA = new Date(a.lastModified).getTime();
+        const timeB = new Date(b.lastModified).getTime();
+        return timeB - timeA;
+      })
+       users.map(user=>{
+        user["LatestImage"] =null;
+        images.map(img=>{
+          const userUUID = img?.key.split("/")[1].split("|")[1].split(".")[0];
+          // console.log(userUUID)
+          if(userUUID === user?.userUUID && !user["LatestImage"]){
+            user["LatestImage"] = img;
+          }
+        })
+        return user;
+      })
+
       return res.status(200).json(users);
     } catch (error) {
       return res
