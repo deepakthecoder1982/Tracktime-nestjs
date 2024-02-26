@@ -31,6 +31,7 @@ import { Subscription } from './organisation/subscription.entity';
 import { EmailReportSettings } from './organisation/emailreportsetting.entity';
 import { Category } from './organisation/category.entity';
 import { UniqueApps } from './organisation/uniqueapps.entity';
+import { DesktopAppEntity } from './organisation/desktopapp.entity';
 
 // {
 //   type: 'mysql',
@@ -60,6 +61,7 @@ import { UniqueApps } from './organisation/uniqueapps.entity';
       EmailReportSettings,
       Category,
       UniqueApps,
+      DesktopAppEntity,
     ]),
     JwtModule.register({
       secret: 'crazy-secret',

@@ -10,10 +10,10 @@ export class CreateUniqueAppsDto {
   @IsString()
   type: string;
 
-  @IsUUID()
+  @IsOptional()
   category_uuid: string;
 
-  @IsOptional()
+  @IsString()
   category_name: string;
 
   @IsOptional()

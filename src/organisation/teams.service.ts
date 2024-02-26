@@ -1,3 +1,4 @@
+import { DesktopAppDTO } from './dto/desktopapp.dto';
 import { CreateUniqueAppsDto } from './dto/uniqueapps.dto';
 import { CreateCategoryDto } from './dto/category.dto';
 import { EmailReportSettingDto } from './dto/emailreportsetting.dto';
@@ -21,6 +22,7 @@ import { EmailReportSettings } from './emailreportsetting.entity';
 import { Category } from './category.entity';
 import { UniqueApps } from './uniqueapps.entity';
 import { v4 as uuidv4 } from 'uuid';
+import { DesktopAppEntity } from './desktopapp.entity';
 @Injectable()
 export class teamAndTeamMemberService {
   constructor(
@@ -40,6 +42,8 @@ export class teamAndTeamMemberService {
     private categoryRepository: Repository<Category>,
     @InjectRepository(UniqueApps)
     private UniqueAppsRepository: Repository<UniqueApps>,
+    @InjectRepository(DesktopAppEntity)
+    private desktopAppsRepository: Repository<DesktopAppEntity>,
   ) {}
   //create team
   async createTeam(createTeamsDto: CreateTeamsDto): Promise<Teams> {
@@ -241,18 +245,18 @@ export class teamAndTeamMemberService {
     return await this.categoryRepository.delete({ category_uuid });
   }
   //unique apps
-  async findCategoryByid(category_uuid: string) {
-    return await this.categoryRepository.findOne({ where: { category_uuid } });
+  async findCategoryByName(category_name: string) {
+    return await this.categoryRepository.findOne({ where: { category_name } });
   }
   async createApps(
     CreateUniqueAppsDto: CreateUniqueAppsDto,
   ): Promise<UniqueApps> {
-    const obj = this.findCategoryByid(CreateUniqueAppsDto.category_uuid); //function call to get category_name and parent_category on the basis of uuid
+    const obj = this.findCategoryByName(CreateUniqueAppsDto.category_name); //function call to get category_name and parent_category on the basis of uuid
 
-    const categoryname = (await obj).category_name;
+    const categoryId = (await obj).category_uuid;
     const parentcategory = (await obj).parent_category;
 
-    console.log((await obj).category_name);
+    console.log((await obj).category_uuid);
     console.log((await obj).parent_category);
 
     const apps = this.UniqueAppsRepository.create({
@@ -260,8 +264,8 @@ export class teamAndTeamMemberService {
       app_name: CreateUniqueAppsDto.app_name,
       description: CreateUniqueAppsDto.description,
       type: CreateUniqueAppsDto.type,
-      category_uuid: CreateUniqueAppsDto.category_uuid,
-      category_name: categoryname,
+      category_uuid: categoryId,
+      category_name: CreateUniqueAppsDto.category_name,
       parent_category: parentcategory,
     });
 
@@ -290,5 +294,44 @@ export class teamAndTeamMemberService {
     return await this.UniqueAppsRepository.find({
       where: whereCondition,
     });
+  }
+  //desktop app
+  async createDesktopApp(
+    DesktopAppDTO: DesktopAppDTO,
+  ): Promise<DesktopAppEntity> {
+    const desktopapp = this.desktopAppsRepository.create({
+      team_uid: DesktopAppDTO.team_uid,
+      user_uuid: DesktopAppDTO.user_uuid,
+      organization_id: DesktopAppDTO.organization_id,
+      policy_content: DesktopAppDTO.policy_content,
+      policy_uuid: DesktopAppDTO.policy_uuid,
+    });
+    const savedDesktopApp = await this.desktopAppsRepository.save(desktopapp);
+    console.log('Saved Desktop App:', savedDesktopApp);
+    return savedDesktopApp;
+  }
+  async getDesktopApp(): Promise<DesktopAppEntity[]> {
+    const apps = await this.desktopAppsRepository.find();
+
+    // Parse the policy_content if it is a string
+    const parsedApps = apps.map((app) => {
+      if (typeof app.policy_content === 'string') {
+        return {
+          ...app,
+          policy_content: JSON.parse(app.policy_content),
+        };
+      }
+      return app;
+    });
+
+    console.log(parsedApps);
+    return parsedApps;
+  }
+  async updateDesktopApp(team_uid: UUID, dto: DesktopAppDTO) {
+    await this.desktopAppsRepository.update(team_uid, dto);
+    return this.desktopAppsRepository.findOne({ where: { team_uid } });
+  }
+  async deleteDesktopAppById(team_uid: UUID) {
+    return await this.desktopAppsRepository.delete({ team_uid });
   }
 }

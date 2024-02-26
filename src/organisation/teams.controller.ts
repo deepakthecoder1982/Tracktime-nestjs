@@ -4,6 +4,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   Param,
   Post,
   Put,
@@ -26,6 +27,8 @@ import { CreateCategoryDto } from './dto/category.dto';
 import { Category } from './category.entity';
 import { CreateUniqueAppsDto } from './dto/uniqueapps.dto';
 import { UniqueApps } from './uniqueapps.entity';
+import { DesktopAppDTO } from './dto/desktopapp.dto';
+import { DesktopAppEntity } from './desktopapp.entity';
 @Controller('team')
 export class TeamAndTeamMemberController {
   constructor(
@@ -177,11 +180,14 @@ export class TeamAndTeamMemberController {
     return this.teamAndTeamMemberService.getApps();
   }
   @Put('/updateapps/:id')
-  updateAppById(@Param('id') id: string, @Body() dto: CreateUniqueAppsDto) {
+  async updateAppById(
+    @Param('id') id: string,
+    @Body() dto: CreateUniqueAppsDto,
+  ) {
     return this.teamAndTeamMemberService.updateAppById(id, dto);
   }
   @Delete('/deleteapps/:id')
-  deleteAppById(@Param('id') id: string) {
+  async deleteAppById(@Param('id') id: string) {
     return this.teamAndTeamMemberService.deleteAppById(id);
   }
   //input - category or parent category name outputs apps in that category
@@ -194,5 +200,25 @@ export class TeamAndTeamMemberController {
       categoryName,
       parentCategory,
     );
+  }
+  //desktop_app
+  @Post('/createdesktopapp')
+  async createDesktopApp(
+    @Body() DesktopAppDTO: DesktopAppDTO,
+  ): Promise<DesktopAppEntity> {
+    return this.teamAndTeamMemberService.createDesktopApp(DesktopAppDTO);
+  }
+  @Get('/getdesktopapp')
+  @Header('Content-Type', 'application/json')
+  async getDesktopApp(): Promise<DesktopAppEntity[]> {
+    return this.teamAndTeamMemberService.getDesktopApp();
+  }
+  @Put('/updatedesktopapp/:id')
+  async updateDesktopApp(@Param('id') id: UUID, @Body() dto: DesktopAppDTO) {
+    return this.teamAndTeamMemberService.updateDesktopApp(id, dto);
+  }
+  @Delete('/deletedesktopapp/:id')
+  async deleteDesktopAppById(@Param('id') id: UUID) {
+    return this.teamAndTeamMemberService.deleteDesktopAppById(id);
   }
 }
