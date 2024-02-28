@@ -22,9 +22,9 @@ export class Organization {
   @Column()
   type: string; // Assuming 'organization_type' maps to this
 
-  @OneToMany(() => User, user => user.organization)
+  @OneToMany(() => User, (user) => user.organization)
   users: User[];
 
-  @OneToMany(() => Team, team => team.organization)
+  @OneToMany(() => Team, (team) => team.organization)
   teams: Team[];
 }
