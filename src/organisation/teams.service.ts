@@ -1,3 +1,6 @@
+import { trackingPolicyDTO } from './dto/tracingpolicy.dto';
+import { productivitySettingDTO } from './dto/prodsetting.dto';
+import { applicationDTO } from './dto/applications.dto';
 import { DesktopAppDTO } from './dto/desktopapp.dto';
 import { CreateUniqueAppsDto } from './dto/uniqueapps.dto';
 import { CreateCategoryDto } from './dto/category.dto';
@@ -23,6 +26,9 @@ import { Category } from './category.entity';
 import { UniqueApps } from './uniqueapps.entity';
 import { v4 as uuidv4 } from 'uuid';
 import { DesktopAppEntity } from './desktopapp.entity';
+import { applcationEntity } from './application.entity';
+import { productivitySettingEntity } from './prodsetting.entity';
+import { trackingPolicyEntity } from './trackingpolicy.entity';
 @Injectable()
 export class teamAndTeamMemberService {
   constructor(
@@ -44,6 +50,12 @@ export class teamAndTeamMemberService {
     private UniqueAppsRepository: Repository<UniqueApps>,
     @InjectRepository(DesktopAppEntity)
     private desktopAppsRepository: Repository<DesktopAppEntity>,
+    @InjectRepository(applcationEntity)
+    private appRepository: Repository<applcationEntity>,
+    @InjectRepository(productivitySettingEntity)
+    private prodRepository: Repository<productivitySettingEntity>,
+    @InjectRepository(trackingPolicyEntity)
+    private policyRepository: Repository<trackingPolicyEntity>,
   ) {}
   //create team
   async createTeam(createTeamsDto: CreateTeamsDto): Promise<Teams> {
@@ -333,5 +345,108 @@ export class teamAndTeamMemberService {
   }
   async deleteDesktopAppById(team_uid: UUID) {
     return await this.desktopAppsRepository.delete({ team_uid });
+  }
+  //applications
+  async createApp(applicationDTO: applicationDTO): Promise<applcationEntity> {
+    const app = this.appRepository.create({
+      tool_uuid: uuidv4(),
+      tool_name: applicationDTO.tool_name,
+      productivity_status: applicationDTO.productivity_status,
+      setting_uuid: applicationDTO.setting_uuid,
+      policy_uuid: applicationDTO.policy_uuid,
+    });
+    const savedApp = await this.appRepository.save(app);
+    console.log('Saved App:', savedApp);
+    return savedApp;
+  }
+  async getApp(): Promise<applcationEntity[]> {
+    const apps = await this.appRepository.find();
+    return apps;
+  }
+  async updateAppsById(tool_uuid: UUID, dto: applicationDTO) {
+    await this.appRepository.update(tool_uuid, dto);
+    return this.appRepository.findOne({ where: { tool_uuid } });
+  }
+  async deleteAppsById(tool_uuid: UUID) {
+    return await this.appRepository.delete({ tool_uuid });
+  }
+  //productivity settings
+  async createSetting(
+    productivitySettingDTO: productivitySettingDTO,
+  ): Promise<productivitySettingEntity> {
+    const setting = this.prodRepository.create({
+      setting_uuid: uuidv4(),
+      organization_uid: productivitySettingDTO.organization_uid,
+      name: productivitySettingDTO.name,
+      productivity_status: productivitySettingDTO.productivity_status,
+      type: productivitySettingDTO.type,
+      policy_uuid: productivitySettingDTO.policy_uuid,
+    });
+    const savedSetting = await this.prodRepository.save(setting);
+    console.log('Saved Setting:', savedSetting);
+    return savedSetting;
+  }
+  async getSetting(): Promise<productivitySettingEntity[]> {
+    const apps = await this.prodRepository.find();
+
+    // Parse the policy_content if it is a string
+    const parsedSetting = apps.map((app) => {
+      if (typeof app.type === 'string') {
+        return {
+          ...app,
+          type: JSON.parse(app.type),
+        };
+      }
+      return app;
+    });
+
+    console.log(parsedSetting);
+    return parsedSetting;
+  }
+  async updateSettingById(setting_uuid: UUID, dto: productivitySettingDTO) {
+    await this.prodRepository.update(setting_uuid, dto);
+    return this.prodRepository.findOne({ where: { setting_uuid } });
+  }
+  async deleteSettingById(setting_uuid: UUID) {
+    return await this.prodRepository.delete({ setting_uuid });
+  }
+  //tracking policy
+  async createPolicy(
+    trackingPolicyDTO: trackingPolicyDTO,
+  ): Promise<trackingPolicyEntity> {
+    const policy = this.policyRepository.create({
+      policy_uuid: uuidv4(),
+      organization_uid: trackingPolicyDTO.organization_uid,
+      policy_name: trackingPolicyDTO.policy_name,
+      policy_content: trackingPolicyDTO.policy_content,
+      team_uuid: trackingPolicyDTO.team_uuid,
+    });
+    const savedPolicy = await this.policyRepository.save(policy);
+    console.log('Saved Policy:', savedPolicy);
+    return savedPolicy;
+  }
+  async getPolicy(): Promise<trackingPolicyEntity[]> {
+    const apps = await this.policyRepository.find();
+
+    // Parse the policy_content if it is a string
+    const parsedPolicy = apps.map((app) => {
+      if (typeof app.policy_content === 'string') {
+        return {
+          ...app,
+          policy_content: JSON.parse(app.policy_content),
+        };
+      }
+      return app;
+    });
+
+    console.log(parsedPolicy);
+    return parsedPolicy;
+  }
+  async updatePolicyById(policy_uuid: UUID, dto: trackingPolicyDTO) {
+    await this.policyRepository.update(policy_uuid, dto);
+    return this.policyRepository.findOne({ where: { policy_uuid } });
+  }
+  async deletePolicyById(policy_uuid: UUID) {
+    return await this.policyRepository.delete({ policy_uuid });
   }
 }

@@ -1,3 +1,4 @@
+import { applicationDTO } from './dto/applications.dto';
 import { CreateTeamsDto } from './dto/teams.dto';
 import {
   Body,
@@ -29,6 +30,11 @@ import { CreateUniqueAppsDto } from './dto/uniqueapps.dto';
 import { UniqueApps } from './uniqueapps.entity';
 import { DesktopAppDTO } from './dto/desktopapp.dto';
 import { DesktopAppEntity } from './desktopapp.entity';
+import { applcationEntity } from './application.entity';
+import { productivitySettingDTO } from './dto/prodsetting.dto';
+import { productivitySettingEntity } from './prodsetting.entity';
+import { trackingPolicyDTO } from './dto/tracingpolicy.dto';
+import { trackingPolicyEntity } from './trackingpolicy.entity';
 @Controller('team')
 export class TeamAndTeamMemberController {
   constructor(
@@ -220,5 +226,68 @@ export class TeamAndTeamMemberController {
   @Delete('/deletedesktopapp/:id')
   async deleteDesktopAppById(@Param('id') id: UUID) {
     return this.teamAndTeamMemberService.deleteDesktopAppById(id);
+  }
+  //applications
+  @Post('/createapp')
+  async createApp(
+    @Body() applicationDTO: applicationDTO,
+  ): Promise<applcationEntity> {
+    return this.teamAndTeamMemberService.createApp(applicationDTO);
+  }
+  @Get('/getapp')
+  async getApp(): Promise<applcationEntity[]> {
+    return this.teamAndTeamMemberService.getApp();
+  }
+  @Put('/updateapp/:id')
+  async updateAppsById(@Param('id') id: UUID, @Body() dto: applicationDTO) {
+    return this.teamAndTeamMemberService.updateAppsById(id, dto);
+  }
+  @Delete('/deleteapp/:id')
+  async deleteAppsById(@Param('id') id: UUID) {
+    return this.teamAndTeamMemberService.deleteAppsById(id);
+  }
+  //productivity settings
+  @Post('/createsetting')
+  async createSetting(
+    @Body() productivitySettingDTO: productivitySettingDTO,
+  ): Promise<productivitySettingEntity> {
+    return this.teamAndTeamMemberService.createSetting(productivitySettingDTO);
+  }
+  @Get('/getsetting')
+  async getSetting(): Promise<productivitySettingEntity[]> {
+    return this.teamAndTeamMemberService.getSetting();
+  }
+  @Put('/updatesetting/:id')
+  async updateSettingById(
+    @Param('id') id: UUID,
+    @Body() dto: productivitySettingDTO,
+  ) {
+    return this.teamAndTeamMemberService.updateSettingById(id, dto);
+  }
+  @Delete('/deletesetting/:id')
+  async deleteSettingById(@Param('id') id: UUID) {
+    return this.teamAndTeamMemberService.deleteSettingById(id);
+  }
+  //tracking policy
+  @Post('/createpolicy')
+  async createPolicy(
+    @Body() trackingPolicyDTO: trackingPolicyDTO,
+  ): Promise<trackingPolicyEntity> {
+    return this.teamAndTeamMemberService.createPolicy(trackingPolicyDTO);
+  }
+  @Get('/getpolicy')
+  async getPolicy(): Promise<trackingPolicyEntity[]> {
+    return this.teamAndTeamMemberService.getPolicy();
+  }
+  @Put('/updatepolicy/:id')
+  async updatePolicyById(
+    @Param('id') id: UUID,
+    @Body() dto: trackingPolicyDTO,
+  ) {
+    return this.teamAndTeamMemberService.updatePolicyById(id, dto);
+  }
+  @Delete('/deletepolicy/:id')
+  async deletePolicyById(@Param('id') id: UUID) {
+    return this.teamAndTeamMemberService.deletePolicyById(id);
   }
 }

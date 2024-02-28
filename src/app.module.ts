@@ -32,6 +32,9 @@ import { EmailReportSettings } from './organisation/emailreportsetting.entity';
 import { Category } from './organisation/category.entity';
 import { UniqueApps } from './organisation/uniqueapps.entity';
 import { DesktopAppEntity } from './organisation/desktopapp.entity';
+import { applcationEntity } from './organisation/application.entity';
+import { productivitySettingEntity } from './organisation/prodsetting.entity';
+import { trackingPolicyEntity } from './organisation/trackingpolicy.entity';
 
 // {
 //   type: 'mysql',
@@ -62,6 +65,9 @@ import { DesktopAppEntity } from './organisation/desktopapp.entity';
       Category,
       UniqueApps,
       DesktopAppEntity,
+      applcationEntity,
+      productivitySettingEntity,
+      trackingPolicyEntity,
     ]),
     JwtModule.register({
       secret: 'crazy-secret',
