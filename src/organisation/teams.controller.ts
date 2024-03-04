@@ -35,6 +35,8 @@ import { productivitySettingDTO } from './dto/prodsetting.dto';
 import { productivitySettingEntity } from './prodsetting.entity';
 import { trackingPolicyDTO } from './dto/tracingpolicy.dto';
 import { trackingPolicyEntity } from './trackingpolicy.entity';
+import { CreateDevicesDto } from './dto/devices.dto';
+import { Devices } from './devices.entity';
 @Controller('team')
 export class TeamAndTeamMemberController {
   constructor(
@@ -289,5 +291,24 @@ export class TeamAndTeamMemberController {
   @Delete('/deletepolicy/:id')
   async deletePolicyById(@Param('id') id: UUID) {
     return this.teamAndTeamMemberService.deletePolicyById(id);
+  }
+  //devices
+  @Post('/createdevice')
+  async createDevice(
+    @Body() CreateDevicesDto: CreateDevicesDto,
+  ): Promise<Devices> {
+    return this.teamAndTeamMemberService.createDevice(CreateDevicesDto);
+  }
+  @Get('/getdevices')
+  async getDevices(): Promise<Devices[]> {
+    return this.teamAndTeamMemberService.getDevices();
+  }
+  @Put('/updatedevice/:id')
+  updateDeviceById(@Param('id') id: string, @Body() dto: CreateDevicesDto) {
+    return this.teamAndTeamMemberService.updateDeviceById(id, dto);
+  }
+  @Delete('/deletedevice/:id')
+  deleteDeviceById(@Param('id') id: string) {
+    return this.teamAndTeamMemberService.deleteDeviceById(id);
   }
 }

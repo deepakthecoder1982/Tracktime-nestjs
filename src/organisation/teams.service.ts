@@ -1,3 +1,4 @@
+import { CreateDevicesDto } from './dto/devices.dto';
 import { trackingPolicyDTO } from './dto/tracingpolicy.dto';
 import { productivitySettingDTO } from './dto/prodsetting.dto';
 import { applicationDTO } from './dto/applications.dto';
@@ -29,6 +30,7 @@ import { DesktopAppEntity } from './desktopapp.entity';
 import { applcationEntity } from './application.entity';
 import { productivitySettingEntity } from './prodsetting.entity';
 import { trackingPolicyEntity } from './trackingpolicy.entity';
+import { Devices } from './devices.entity';
 @Injectable()
 export class teamAndTeamMemberService {
   constructor(
@@ -56,6 +58,8 @@ export class teamAndTeamMemberService {
     private prodRepository: Repository<productivitySettingEntity>,
     @InjectRepository(trackingPolicyEntity)
     private policyRepository: Repository<trackingPolicyEntity>,
+    @InjectRepository(Devices)
+    private deviceRepository: Repository<Devices>,
   ) {}
   //create team
   async createTeam(createTeamsDto: CreateTeamsDto): Promise<Teams> {
@@ -448,5 +452,28 @@ export class teamAndTeamMemberService {
   }
   async deletePolicyById(policy_uuid: UUID) {
     return await this.policyRepository.delete({ policy_uuid });
+  }
+  //devices
+  async createDevice(CreateDevicesDto: CreateDevicesDto): Promise<Devices> {
+    const devices = this.deviceRepository.create({
+      device_uid: uuidv4(),
+      organization_uid: CreateDevicesDto.organization_uid,
+      user_name: CreateDevicesDto.user_name,
+      user_uid: CreateDevicesDto.user_uid,
+    });
+
+    const savedDevice = await this.deviceRepository.save(devices);
+    console.log('Saved Device:', savedDevice);
+    return savedDevice;
+  }
+  async getDevices(): Promise<Devices[]> {
+    return this.deviceRepository.find();
+  }
+  async updateDeviceById(device_uid: string, dto: CreateDevicesDto) {
+    await this.deviceRepository.update(device_uid, dto);
+    return this.deviceRepository.findOne({ where: { device_uid } });
+  }
+  async deleteDeviceById(device_uid: string) {
+    return await this.deviceRepository.delete({ device_uid });
   }
 }

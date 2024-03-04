@@ -35,6 +35,7 @@ import { DesktopAppEntity } from './organisation/desktopapp.entity';
 import { applcationEntity } from './organisation/application.entity';
 import { productivitySettingEntity } from './organisation/prodsetting.entity';
 import { trackingPolicyEntity } from './organisation/trackingpolicy.entity';
+import { Devices } from './organisation/devices.entity';
 
 // {
 //   type: 'mysql',
@@ -68,6 +69,7 @@ import { trackingPolicyEntity } from './organisation/trackingpolicy.entity';
       applcationEntity,
       productivitySettingEntity,
       trackingPolicyEntity,
+      Devices,
     ]),
     JwtModule.register({
       secret: 'crazy-secret',
