@@ -138,14 +138,15 @@ export class teamAndTeamMemberService {
     registeredUsersDto: registeredUsersDto,
   ): Promise<RegisteredUser> {
     const user = this.registeredUserRepository.create({
-      user_uid: uuidv4(),
-      organization_id: registeredUsersDto.organization_id,
-      first_name: registeredUsersDto.first_name,
-      last_name: registeredUsersDto.last_name,
-      organization_name: registeredUsersDto.organization_name,
-      team_id: registeredUsersDto.team_id,
-      type: registeredUsersDto.type,
-      account_status: registeredUsersDto.account_status,
+      // user_uid: uuidv4(),
+      // organization_id: registeredUsersDto.organization_id,
+      // first_name: registeredUsersDto.first_name,
+      // last_name: registeredUsersDto.last_name,
+      // organization_name: registeredUsersDto.organization_name,
+      // team_id: registeredUsersDto.team_id,
+      // type: registeredUsersDto.type,
+      // account_status: registeredUsersDto.account_status,
+      
     });
     const organization_id = registeredUsersDto.organization_id;
     const organization_name = registeredUsersDto.organization_name;

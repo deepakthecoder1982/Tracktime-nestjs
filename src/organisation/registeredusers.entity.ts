@@ -1,3 +1,4 @@
+import { TrackTimeStatus } from 'src/users/user.entity';
 import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity('registeredusers')
@@ -23,6 +24,8 @@ export class RegisteredUser {
   @Column({ type: 'uuid' })
   type: number;
 
-  @Column()
-  account_status: boolean;
+  @Column('json', { nullable: true })
+  config: {
+    trackTimeStatus: TrackTimeStatus;
+  };
 }

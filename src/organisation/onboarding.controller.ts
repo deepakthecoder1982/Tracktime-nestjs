@@ -186,4 +186,40 @@ export class OnboardingController {
   //     return res.status(500).json({ message: 'Failed to fetch users', error: error.message });
   //   }
   // }
+  @Post('register')
+  async registerUser(
+    @Body() userData: Partial<User>,
+    @Res() res,
+    @Req() req,
+  ): Promise<any> {
+    const isAdmin = userData.isAdmin !== undefined ? userData.isAdmin : false;
+    const organizationId = req?.headers["organizationId"] 
+    
+    try { 
+      // Default config for new users
+      const defaultConfig = {
+        trackTimeStatus: TrackTimeStatus.Resume,
+        // Add other config properties as needed
+      };
+
+      const newUser = await this.userService.registerUser({
+        ...userData,
+        isAdmin,
+        organizationUUID:organizationId,
+        config: defaultConfig,
+      });
+      console.log(newUser);
+
+      res.set('user-id', newUser.userUUID);
+      return res
+        .status(200)
+        .json({ message: 'User registered successfully', user: newUser });
+      // return { message: 'User registered successfully', user: newUser };
+    } catch (error) {
+      return res.status(500).json({
+        message: 'Failed to register user',
+        error: error?.message,
+      });
+    }
+  }
 }

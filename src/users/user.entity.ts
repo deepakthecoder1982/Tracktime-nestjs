@@ -28,29 +28,24 @@ export class User {
   @IsEmail()
   email: string;
 
-  @Column()
-  @IsNotEmpty()
-  password: string;
-
-  @Column()
-  @IsNotEmpty()
-  userType: 'Tracked' | 'Organization'; // Adjust as per your schema
+  // @Column()
+  // @IsNotEmpty()
+  // userType: 'Tracked' | 'Organization'; // Adjust as per your schema
 
   @Column('json', { nullable: true })
   config: {
     trackTimeStatus: TrackTimeStatus;
   };
-  
-  @Column({ default: false })
-  isAdmin: boolean;
 
-  @ManyToOne(() => Organization, organization => organization.users)
-  organization: Organization;
+  // @ManyToOne(() => Organization, organization => organization.users)
+  // organization: Organization;
 
-  @ManyToOne(() => Team, team => team.users)
-  team: Team;
+  // @Column()
+  // organizationName:string;
 
-  // Include this if you want to store the team ID directly
+  // @ManyToOne(() => Team, team => team.users)
+  // team: Team;
+
   @Column({ nullable: true })
   teamId: string;
 
