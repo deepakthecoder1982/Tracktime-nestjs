@@ -26,7 +26,6 @@ import { TeamMember } from './organisation/teammembers.entity';
 import { TeamAndTeamMemberController } from './organisation/teams.controller';
 import { teamAndTeamMemberService } from './organisation/teams.service';
 import { RegisteredUser } from './organisation/registeredusers.entity';
-import { Organizations } from './organisation/organization.entity';
 import { Subscription } from './organisation/subscription.entity';
 import { EmailReportSettings } from './organisation/emailreportsetting.entity';
 import { Category } from './organisation/category.entity';
@@ -36,6 +35,7 @@ import { applcationEntity } from './organisation/application.entity';
 import { productivitySettingEntity } from './organisation/prodsetting.entity';
 import { trackingPolicyEntity } from './organisation/trackingpolicy.entity';
 import { Devices } from './organisation/devices.entity';
+import { ConfigService } from '@nestjs/config';
 
 // {
 //   type: 'mysql',
@@ -60,7 +60,6 @@ import { Devices } from './organisation/devices.entity';
       Teams,
       TeamMember,
       RegisteredUser,
-      Organizations,
       Subscription,
       EmailReportSettings,
       Category,
@@ -87,6 +86,7 @@ import { Devices } from './organisation/devices.entity';
     JwtStrategy,
     OnboardingService,
     teamAndTeamMemberService,
+    ConfigService
   ],
 })
 export class AppModule implements NestModule {

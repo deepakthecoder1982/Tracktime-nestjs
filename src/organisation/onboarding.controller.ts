@@ -18,7 +18,11 @@ import { CreateDesktopApplicationDto } from './dto/desktop.dto';
 import { CreateTeamDto } from './dto/team.dto';
 import { Response } from 'express';
 import { AuthService } from 'src/users/auth.service';
-
+import { TrackTimeStatus, User } from 'src/users/user.entity';
+import { validateOrReject } from 'class-validator';
+import * as crypto from "crypto";
+import * as fs from "fs";
+import * as path from "path";
 @Controller('onboarding')
 export class OnboardingController {
   constructor(
@@ -71,7 +75,7 @@ export class OnboardingController {
     );
   }
 
-  @Post('team')
+  @Post('organization/team')
   async createTeam(@Body() createTeamDto: CreateTeamDto): Promise<Team> {
     return this.onboardingService.createTeam(createTeamDto);
   }
@@ -141,14 +145,14 @@ export class OnboardingController {
     // @Param('userId') userId: string,
   ): Promise<any> {
     // Check if the requesting user is an admin
-    const adminId = req.headers['user-id'];
+    const organId = req.headers['organizationId'];
     const status = Body?.status;
-    const requestingUser = await this.userService.validateUserById(adminId);
+    const requestingUser = await this.userService.validateUserById(organId);
     // console.log(requestingUser)
 
-    if (!requestingUser?.isAdmin) {
+    if (!requestingUser?.organization.id) {
       return res.status(403).json({
-        message: 'Unauthorized: Only admin can update track time status',
+        message: 'Unauthorized: Only orgnaization can update track time status',
       });
     }
 
@@ -186,40 +190,86 @@ export class OnboardingController {
   //     return res.status(500).json({ message: 'Failed to fetch users', error: error.message });
   //   }
   // }
-  @Post('register')
+  @Post('register/user')
   async registerUser(
     @Body() userData: Partial<User>,
     @Res() res,
     @Req() req,
   ): Promise<any> {
-    const isAdmin = userData.isAdmin !== undefined ? userData.isAdmin : false;
-    const organizationId = req?.headers["organizationId"] 
-    
+    // const isAdmin = userData.isAdmin !== undefined ? userData.isAdmin : false;
+    const organizationId = req?.headers["organizationid"] 
+    const teamId = req?.headers["teamid"]
     try { 
       // Default config for new users
       const defaultConfig = {
         trackTimeStatus: TrackTimeStatus.Resume,
-        // Add other config properties as needed
       };
+      console.log("organizationId",organizationId,"teamId",teamId)
+
+      if(!organizationId || !teamId){
+        return res.status(401).send({message:"Orgnaization or teams are allowed to create users user."});
+      }
+      const isValidOrganization = this.onboardingService.validateOrganization(organizationId)
+
+      if(!isValidOrganization) {
+        return res.status(401).send({message:"Not a valid organization"});
+      }
+
+// validate here teamId and also the orangizationId also that is that team which had requestwhile adding 
+// the team is that team exist in that 
+// orgnaization 
+      let isUserExist = await this.userService.ValidateUserByGmail(userData?.email);
+      if(isUserExist?.email) {
+          return res.status(401).send({message:"User already exists"});
+      }
 
       const newUser = await this.userService.registerUser({
-        ...userData,
-        isAdmin,
         organizationUUID:organizationId,
         config: defaultConfig,
+        teamId,
+        email:userData.email,
+        userName:userData.userName
       });
-      console.log(newUser);
 
-      res.set('user-id', newUser.userUUID);
+      const uniqueDeviceCreation = await this.onboardingService.createDeviceForUser(newUser) 
+      
+      console.log(uniqueDeviceCreation);
+      if(!uniqueDeviceCreation){
+        return res.status(400).send({message :"Device creation failed"});
+      }
+
+      const key = 'an example very very secret key.'; // Replace with a strong secret key
+      const iv = crypto.randomBytes(16);
+      const encryptedDeviceId = this.encryptData(uniqueDeviceCreation, key, iv);
+    
+
+      // const configFilePath = './organisation/dev_config.txt';
+      // const path = require('path');
+      // const configFilePath = path.join(__dirname, 'organisation', 'dev_config.txt');
+      
+      const configFilePath = './dev_config.txt';
+      const configContents = fs.readFileSync(configFilePath, 'utf-8');
+      const updatedConfig = configContents.replace(/device_id=\w+/gi, `device_id=${encryptedDeviceId}`);
+      fs.writeFileSync(configFilePath, updatedConfig);
+
+
+      // res.set('user-id', newUser.userUUID);
       return res
         .status(200)
-        .json({ message: 'User registered successfully', user: newUser });
+        .json({ message: 'User registered successfully', user: newUser,uniqueDeviceCreation });
       // return { message: 'User registered successfully', user: newUser };
     } catch (error) {
       return res.status(500).json({
         message: 'Failed to register user',
-        error: error?.message,
+        error: error,
       });
     }
+  }
+
+  private encryptData(data: String, key: string, iv: Buffer): string {
+    const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(key), iv);
+    let encrypted = cipher.update(data.toString(), 'utf-8', 'hex');
+    encrypted += cipher.final('hex');
+    return encrypted;
   }
 }

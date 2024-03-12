@@ -2,14 +2,14 @@ import { IsInt, IsString } from 'class-validator';
 
 export class updateOrgDto {
   @IsString()
-  organization_logo: string;
+  logo  : string;
 
   @IsString()
-  organization_country: string;
+  country: string;
 
   @IsInt()
-  organization_size: number;
+  teamSize: number;
 
   @IsString()
-  organization_type: string;
+  type: string;
 }

@@ -22,8 +22,14 @@ export class Team {
   @OneToMany(() => User, (user) => user.team)
   users: User[];
 
+  // @Column({ type: 'uuid' })
+  // policy_uuid: string;
+
   @ManyToOne(() => Organization, (organization) => organization.teams)
   organization: Organization;
+ 
+  @OneToMany(() => User, (teamMember) => teamMember.teamId)
+  teamMembers: User[];
 }
 
 // New format data follow this

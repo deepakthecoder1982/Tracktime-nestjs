@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Organization } from './organisation.entity';
 import { DesktopApplication } from './desktop.entity';
@@ -10,8 +10,10 @@ import { UserActivity } from 'src/users/user_activity.entity';
 import { DeepPartial } from 'typeorm';
 import { prototype } from 'events';
 import { ConfigService } from '@nestjs/config';
-
+import fs from 'fs';
 import { S3 } from 'aws-sdk';
+import { Devices } from './devices.entity';
+import { validate } from 'class-validator';
 
 type UpdateConfigType = DeepPartial<User['config']>;
 
@@ -29,6 +31,8 @@ export class OnboardingService {
     private userRepository: Repository<User>,
     @InjectRepository(UserActivity)
     private userActivityRepository: Repository<UserActivity>,
+    @InjectRepository(Devices)
+    private devicesRepository: Repository<Devices>,
     private ConfigureService:ConfigService
   ) {
     this.s3 = new S3({
@@ -231,5 +235,32 @@ export class OnboardingService {
     const userData = await this.userActivityRepository.find();
    
     return userData;
+  }
+
+  async validateOrganization(organid:string):Promise<boolean>{
+    const organId= await this.organizationRepository.findOne({where: {id:organid}});
+    if(organId?.id){
+      return true
+    }
+    return false; 
+  }
+
+  async createDeviceForUser(user:User):Promise<String>{
+    console.log(user?.organization)
+    console.log(user?.organizationUUID)
+    const deviceForUser = this.devicesRepository.create({
+      organization_uid:user?.organizationUUID,
+      user_name:user.userName,
+      user_uid:user.userUUID
+    })
+
+    const errors = await validate(deviceForUser);
+
+    if (errors.length > 0) {
+      throw new BadRequestException(errors);
+    }
+   const device = await this.devicesRepository.save(deviceForUser);
+   console.log(device)
+    return device?.device_uid;
   }
 }

@@ -18,7 +18,6 @@ import { CreateTeamMembersDto } from './dto/teammembers.dto';
 import { UUID } from 'crypto';
 import { RegisteredUser } from './registeredusers.entity';
 import { UpdateUserDto } from './dto/UpdateUserDto.dto';
-import { Organizations } from './organization.entity';
 import { CreateOrganizationDto } from './dto/organizations.dto';
 import { updateOrgDto } from './dto/updateorg.dto';
 import { Subscription } from './subscription.entity';
@@ -31,6 +30,7 @@ import { applcationEntity } from './application.entity';
 import { productivitySettingEntity } from './prodsetting.entity';
 import { trackingPolicyEntity } from './trackingpolicy.entity';
 import { Devices } from './devices.entity';
+import { Organization } from './organisation.entity';
 @Injectable()
 export class teamAndTeamMemberService {
   constructor(
@@ -40,8 +40,8 @@ export class teamAndTeamMemberService {
     private teamMemberRepository: Repository<TeamMember>,
     @InjectRepository(RegisteredUser)
     private registeredUserRepository: Repository<RegisteredUser>,
-    @InjectRepository(Organizations)
-    private orgRepository: Repository<Organizations>,
+    @InjectRepository(Organization)
+    private orgRepository: Repository<Organization>,
     @InjectRepository(Subscription)
     private subsRepository: Repository<Subscription>,
     @InjectRepository(EmailReportSettings)
@@ -156,8 +156,8 @@ export class teamAndTeamMemberService {
     const organization_name = registeredUsersDto.organization_name;
 
     const org = this.orgRepository.create({
-      organization_id: organization_id,
-      organization_name: organization_name,
+      id: organization_id,
+      name: organization_name,
     });
     const savedUser = await this.registeredUserRepository.save(user);
     const savedOrg = await this.orgRepository.save(org);
@@ -178,11 +178,11 @@ export class teamAndTeamMemberService {
   //organization
   async updateOrganizationById(organization_id: UUID, dto: updateOrgDto) {
     await this.orgRepository.update(organization_id, dto);
-    return this.orgRepository.findOne({ where: { organization_id } });
+    return this.orgRepository.findOne({ where: { id:organization_id } });
   }
   //delete organization
   async deleteOrganizationById(organization_id: UUID) {
-    return await this.orgRepository.delete({ organization_id });
+    return await this.orgRepository.delete({ id: organization_id });
   }
   //subscription
   async addSubscription(

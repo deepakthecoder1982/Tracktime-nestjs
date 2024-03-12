@@ -39,6 +39,7 @@ export class TeamMember {
 
   @CreateDateColumn({ name: 'timestamp' })
   timestamp: Date;
+  
   @ManyToOne(() => Teams, (teams) => teams.teamMembers)
   @JoinColumn({ name: 'team_uuid' })
   team: Teams;
