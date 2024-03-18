@@ -1,6 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
 import { Team } from './team.entity';
 import { User } from 'src/users/user.entity';
+import { IsNotEmpty } from 'class-validator';
 
 @Entity()
 export class Organization {
@@ -8,18 +9,27 @@ export class Organization {
   id: string;
 
   @Column()
+  @IsNotEmpty()
   name: string;
 
   @Column({ nullable: true })
+  @IsNotEmpty()
   logo: string; // Assuming there's a logo field based on the keys
 
   @Column()
+  @IsNotEmpty()
   country: string; // Assuming there's a country field
 
+  // @Column()
+  // @IsNotEmpty()
+  // password:string;
+
   @Column('int')
+  @IsNotEmpty()
   teamSize: number; // Changed type to 'int' to reflect 'INTEGER'
 
   @Column()
+  @IsNotEmpty()
   type: string; // Assuming 'organization_type' maps to this
 
   @OneToMany(() => User, (user) => user.organization)

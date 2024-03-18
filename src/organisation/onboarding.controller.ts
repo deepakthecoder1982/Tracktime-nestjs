@@ -243,12 +243,25 @@ export class OnboardingController {
       const encryptedDeviceId = this.encryptData(uniqueDeviceCreation, key, iv);
     
 
-      // const configFilePath = './organisation/dev_config.txt';
-      // const path = require('path');
-      // const configFilePath = path.join(__dirname, 'organisation', 'dev_config.txt');
+      const configFilePath = path.join(process.cwd(), "src",'organisation', 'Installer', 'dev_config.txt');
       
-      const configFilePath = './dev_config.txt';
-      const configContents = fs.readFileSync(configFilePath, 'utf-8');
+      let configContents = fs.readFileSync(configFilePath, 'utf8');
+
+
+      // let configContents = "";
+      //  fs.readFile(configFilePath, 'utf-8',(err,data)=>{
+      //   if(err){
+      //     console.log(err?.message);
+      //     return err?.message;
+      //   }
+      //   // console.log(data);
+      //   configContents = data;
+      //   // return data.toString();
+      // });
+
+      // console.log(configContents)
+
+      
       const updatedConfig = configContents.replace(/device_id=\w+/gi, `device_id=${encryptedDeviceId}`);
       fs.writeFileSync(configFilePath, updatedConfig);
 
@@ -265,7 +278,7 @@ export class OnboardingController {
       });
     }
   }
-
+  
   private encryptData(data: String, key: string, iv: Buffer): string {
     const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(key), iv);
     let encrypted = cipher.update(data.toString(), 'utf-8', 'hex');
