@@ -34,6 +34,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     @InjectRepository(PaidUser)
     private paidUserRepository: Repository<PaidUser>,
+    
   ) {}
 
   async addToPaidUsers(user: User): Promise<void> {
@@ -101,11 +102,11 @@ export class AuthService {
       throw new Error('Failed to mark user as paid');
     }
   }
-  async getUserConfig(userId: string): Promise<any> {
+  async getUserConfig(deviceId: string): Promise<any> {
     try {
       // Logic to fetch user details from your database or storage based on user ID
       const user = await this.userRepository.findOne({
-        where: { userUUID: userId },
+        where: { userUUID: deviceId },
       });
 
       if (!user) {
@@ -125,6 +126,9 @@ export class AuthService {
       throw new Error('Failed to fetch user config');
     }
   }
+
+
+
   async save(user: User): Promise<User> {
     return await this.userRepository.save(user);
   }

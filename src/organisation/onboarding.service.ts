@@ -14,6 +14,7 @@ import fs from 'fs';
 import { S3 } from 'aws-sdk';
 import { Devices } from './devices.entity';
 import { validate } from 'class-validator';
+import { Subscription } from './subscription.entity';
 
 type UpdateConfigType = DeepPartial<User['config']>;
 
@@ -33,7 +34,10 @@ export class OnboardingService {
     private userActivityRepository: Repository<UserActivity>,
     @InjectRepository(Devices)
     private devicesRepository: Repository<Devices>,
-    private ConfigureService:ConfigService
+    private ConfigureService:ConfigService,
+    @InjectRepository(Subscription)
+    private SubscriptionRepository:Repository<Subscription>,
+
   ) {
     this.s3 = new S3({
       endpoint:this.ConfigureService.get<string>("WASABI_ENDPOINT"),
@@ -245,15 +249,15 @@ export class OnboardingService {
     return false; 
   }
 
-  async createDeviceForUser(user:User):Promise<String>{
-    console.log(user?.organization)
-    console.log(user?.organizationUUID)
-    const deviceForUser = this.devicesRepository.create({
-      organization_uid:user?.organizationUUID,
-      user_name:user.userName,
-      user_uid:user.userUUID
-    })
+  async createDeviceForUser(organization_uid:string,mac_address:string,userName:string):Promise<String>{
 
+    const deviceForUser = await this.devicesRepository.create({
+      organization_uid,
+      user_name:userName,
+      user_uid:null,
+      mac_address:mac_address,
+    })
+    
     const errors = await validate(deviceForUser);
 
     if (errors.length > 0) {
@@ -262,5 +266,79 @@ export class OnboardingService {
    const device = await this.devicesRepository.save(deviceForUser);
    console.log(device)
     return device?.device_uid;
+  }
+
+  async getUserDeviceId(deviceId:string){
+    try {
+      
+      const device = await this.devicesRepository.find({where :{device_uid:deviceId}});
+
+      console.log(device); 
+      
+      return device;
+
+    } catch (error) {
+      console.log(error)
+    }
+    return null;
+  }
+  async createDeviceIdForUser(mac_address:string,user_name:string,organizationId:string){
+    try{
+      // const isOrganizationExist = await this.organizationRepository.find({where: {}})
+    }catch(err){
+
+    }
+
+  }
+
+  async checkDeviceIdExist(mac_address :string ,device_user_name :string):Promise<String>{
+    try{
+      const isExist = await this.devicesRepository.findOne({where:{mac_address:mac_address}
+        // where : {user_name:device_user_name} 
+      });
+      console.log(isExist);
+      if(isExist?.user_name && isExist?.user_name.toLowerCase() === device_user_name.toLowerCase()){
+        return isExist?.device_uid;
+      }
+      console.log(isExist?.user_name, device_user_name,isExist?.user_name==device_user_name);
+
+      return null;
+    }catch(err){
+      console.log(err?.message)
+      return null;
+    }
+  }
+
+  async getUserConfig(deviceId: string, organizationId:string): Promise<any> {
+    try {
+      
+      // Logic to fetch user details from your database or storage based on user ID
+      const user = await this.devicesRepository.findOne({
+        where: { device_uid: deviceId },
+      });
+
+      if (!user?.user_uid) {
+        return {
+          tracktimeStatus:"Resume",
+          isPaid:false,
+        };
+      }
+
+      // Assuming your User entity has a 'config' field
+      // const { config } = user;
+
+      const configUser = await this.userRepository.findOne({where :{userUUID:user?.user_uid}});
+      const isPaid = await this.SubscriptionRepository.findOne({where :{organization_id:organizationId}});
+      const config = configUser.config;
+      // Return the user's configuration and track time status or modify as needed
+
+      console.log('user', user);
+      return {
+        trackTimeStatus: config?.trackTimeStatus || 'Resume',
+        isPaid: config?true:false,
+      };
+    } catch (error) {
+      throw new Error('Failed to fetch user config');
+    }
   }
 }
