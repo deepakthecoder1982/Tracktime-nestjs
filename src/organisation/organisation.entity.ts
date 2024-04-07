@@ -3,7 +3,8 @@ import { Team } from './team.entity';
 import { User } from 'src/users/user.entity';
 import { IsNotEmpty } from 'class-validator';
 
-@Entity()
+@Entity("organization")
+
 export class Organization {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -19,10 +20,6 @@ export class Organization {
   @Column()
   @IsNotEmpty()
   country: string; // Assuming there's a country field
-
-  // @Column()
-  // @IsNotEmpty()
-  // password:string;
 
   @Column('int')
   @IsNotEmpty()

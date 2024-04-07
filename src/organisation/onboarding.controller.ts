@@ -30,7 +30,7 @@ export class OnboardingController {
     private readonly userService: AuthService,
   ) {}
 
-  @Post('organization')
+  @Post('organization/register')
   async createOrganization(
     @Body() createOrganizationDto: CreateOrganizationDto,
   ): Promise<Organization> {
@@ -42,24 +42,27 @@ export class OnboardingController {
     try {
       const images = await this.onboardingService.fetchScreenShot();
       const userData = await this.onboardingService.getAllUserActivityData();
-      const getUsersInDb = await this.onboardingService.findAllUsers();
-
+      const getUsersInDb = await this.onboardingService.findAllDevices();
+      // console.log(images);
+      // console.log(userData);
       let finalData = userData.map((user) => {
+        // console.log(user);
         images.forEach((image) => {
           const imgUrlExtracted = image?.key.split('/')[1].split('|')[0];
-          if (user.activity_uuid === imgUrlExtracted) {
+          // console.log("imgUrlExtracted",imgUrlExtracted);
+          if (user?.activity_uuid === imgUrlExtracted) {
             user['ImgData'] = image;
           }
         });
 
         getUsersInDb.forEach((u) => {
-          if (u.userUUID === user.user_uid) {
-            user['user_name'] = u.userName;
+          if (u.user_uid === user.user_uid) {
+            user['device_user_name'] = u.user_name;
           }
         });
         return user;
       });
-      // console.log(finalData);
+      console.log(finalData);
       res.status(200).json(finalData);
     } catch (error) {
       res.status(400).json({
@@ -110,6 +113,76 @@ export class OnboardingController {
       return res
         .status(500)
         .json({ message: 'Failed to fetch users', error: error.message });
+    }
+  }
+
+  @Get('organization/devices')
+  async getAllDevices(@Res() res: Response): Promise<Response> {
+    try {
+      const devices = await this.onboardingService.findAllDevices();
+      const users = await this .onboardingService.findAllUsers();
+      const images = await this.onboardingService.fetchScreenShot();
+      const organization = await this.onboardingService.fetchAllOrganization();
+      const teams = await this.onboardingService.getAllTeam();
+
+      /// addition of token authorization needed like which orgnaization is making request that will be send in headers and first decode it
+      // and use it to fetch the details about organization's devices and team.
+
+      images.sort((a, b) => {
+        const timeA = new Date(a.lastModified).getTime();
+        const timeB = new Date(b.lastModified).getTime();
+        return timeB - timeA;
+      });
+
+      devices.map((user) => {
+        user['LatestImage'] = null;
+        user["userDetail"] = null;
+        user["OrganizationDetail"] = null;
+        user["teamDetail"] = null;
+        images.map((img) => {
+          const userUUID = img?.key.split('/')[1].split('|')[1].split('.')[0];
+          // console.log(userUUID)
+          if (userUUID === user?.device_uid && !user['LatestImage']) {
+            user['LatestImage'] = img;
+          }
+        });
+
+        // for updating hte user details
+        user?.user_uid && users.map(u=>{
+          const userUUID = u.userUUID;
+          if(user?.user_uid && user?.user_uid === userUUID){
+           user["userDetails"] = user;
+           user["user_name"] = u.userName;
+          }
+        });
+        
+        //for updating the orgnization details
+        user?.organization_uid && organization.map(org=>{
+          if(user?.organization_uid === org.id){
+            user["OrganizationDetail"] = org;
+          }
+        })
+        user?.user_uid && teams.map(team=>{
+          if(user?.organization_uid === team?.organizationId ){
+              users.map(u=>{
+                if(u?.teamId === team.id){
+                  user["teamDetail"] = team;
+                }
+              })
+          }
+        })
+        //for updating the orgnization details
+        
+        return user;
+      });
+      
+      
+
+      return res.status(200).json(devices);
+    } catch (error) {
+      return res
+        .status(500)
+        .json({ message: 'Failed to fetch devices', error: error.message });
     }
   }
 
@@ -366,4 +439,6 @@ export class OnboardingController {
       return res.status(500).json({ message: 'Failed to fetch user config' });
     }
   }
+
+  
 }

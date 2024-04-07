@@ -141,14 +141,22 @@ export class OnboardingService {
   async findAllUsers(): Promise<User[]> {
     return await this.userRepository.find();
   }
-
+  async findAllDevices(): Promise<Devices[]> {
+    return await this.devicesRepository.find();
+  }
+  async fetchAllOrganization(): Promise<Organization[]> {
+    return await this.organizationRepository.find();
+  }
+  async getAllTeam():Promise<Team[]> {
+    return await this.teamRepository.find();
+  }
  // In your OnboardingService
   async getUserDetails(id: string,page:number,limit:number): Promise<UserActivity[]> {
-    // If findOneBy is not recognized or you prefer a more explicit approach, use findOne:
+    //If findOneBy is not recognized or you prefer a more explicit approach, use findOne:
     //apply here the logic for sorting the data in timing format and then get's teh data wanted
     const FetchedData = await this.userActivityRepository.find({where:{user_uid:id}});
     const ImgData = await this.fetchScreenShot();
-    const userData = await this.findAllUsers();
+    const userData = await this.findAllDevices();
 
     if (!FetchedData) {
       throw new Error('User not found');
@@ -162,14 +170,13 @@ export class OnboardingService {
         }
       }) 
       userData.map(user=>{
-        if(user.userUUID === userD.user_uid){
-          userD["user_name"] = user.userName;
+        if(user.device_uid === userD.user_uid){
+          userD["user_name"] = user.user_name;
         }
       })
       return userD;
     })
 
-   
 
     userUnsortedData?.sort((a,b)=> 
     {
@@ -182,7 +189,7 @@ export class OnboardingService {
     const skip = (page-1) * limit;
     const take = limit*page; 
     const userDataInLimit = userUnsortedData?.slice(skip,take)
-    
+    console.log(page,limit,skip,take)
     return userDataInLimit
     // const user = await this.userActivityRepository.find({ where: { user_uid:id },
     // skip,
@@ -341,4 +348,6 @@ export class OnboardingService {
       throw new Error('Failed to fetch user config');
     }
   }
+ 
+
 }
