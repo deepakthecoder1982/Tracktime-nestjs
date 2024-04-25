@@ -39,6 +39,7 @@ import { ConfigService } from '@nestjs/config';
 import { organizationAdminService } from './organisation/OrganizationAdmin.service';
 import { OrganizationAdminController } from './organisation/OrgnaizationRegister.controller';
 import { CreateOrganizationAdmin } from './organisation/OrganizationAdmin.entity';
+import { OnbaordingAuthMiddleware } from './middleware/OnboardingAuth.middleware'; 
 
 
 @Module({
@@ -49,7 +50,7 @@ import { CreateOrganizationAdmin } from './organisation/OrganizationAdmin.entity
       PaidUser,
       Organization,
       DesktopApplication,
-      Team,
+      Team, 
       UserActivity,
       Teams,
       TeamMember,
@@ -65,6 +66,7 @@ import { CreateOrganizationAdmin } from './organisation/OrganizationAdmin.entity
       Devices,
       CreateOrganizationAdmin,
     ]),
+
     JwtModule.register({
       secret: 'crazy-secret',
       signOptions: { expiresIn: '24h' },
@@ -86,16 +88,20 @@ import { CreateOrganizationAdmin } from './organisation/OrganizationAdmin.entity
     organizationAdminService,
   ],
 })
+
+
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
-      .apply(AuthMiddleware)
+      .apply(OnbaordingAuthMiddleware)
       .exclude(
         { path: '', method: RequestMethod.ALL },
         { path: '/*', method: RequestMethod.ALL },
         { path: 'auth/*', method: RequestMethod.ALL },
       )
       .forRoutes(
+        OnboardingController,
+        // {path : "onboarding", method: RequestMethod.ALL}
         // { path: 'auth', method: RequestMethod.ALL },
         // { path: 'auth/*', method: RequestMethod.ALL },
         // Add other routes that require authentication here

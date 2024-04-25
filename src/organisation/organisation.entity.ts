@@ -4,7 +4,7 @@ import { User } from 'src/users/user.entity';
 import { IsNotEmpty } from 'class-validator';
 
 @Entity("organization")
-
+  
 export class Organization {
   @PrimaryGeneratedColumn('uuid')
   id: string;

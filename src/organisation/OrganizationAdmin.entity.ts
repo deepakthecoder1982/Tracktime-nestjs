@@ -24,3 +24,4 @@ export class CreateOrganizationAdmin {
   @Column()
   OrganizationId: string;
 }
+ 

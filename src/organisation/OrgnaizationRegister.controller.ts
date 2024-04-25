@@ -27,6 +27,8 @@ import { OnboardingService } from './onboarding.service';
 import { CreateOrganizationAdminDto } from './dto/organizationAdmin.dto';
 import { Response } from 'express';
 import { organizationAdminService } from './OrganizationAdmin.service';
+import { LoginAdminOrganization } from './dto/OrganizationAdminLogin.dto';
+import { tokenDto } from './dto/token.dto';
 
 @Controller('auth')
 export class OrganizationAdminController {
@@ -40,9 +42,8 @@ export class OrganizationAdminController {
     @Body() createOrganizationDto: CreateOrganizationAdminDto,
     @Res() res: Response,
   ): Promise<any> {
-    console.log('data', createOrganizationDto);
-    let organizationAdmin =
-      await this.organizationAdminService.validateOrganizationAdmin(
+    // console.log('data', createOrganizationDto);
+    let organizationAdmin = await this.organizationAdminService.validateOrganizationAdmin(
         createOrganizationDto?.email,
       );
     if (organizationAdmin) {
@@ -55,11 +56,69 @@ export class OrganizationAdminController {
       createOrganizationDto,
     );
 
-    if (!newAdmin) {
+    if (!newAdmin || !newAdmin?.admin?.id) {
       return res.status(403).send({ message: 'Admin creattion failed' });
     }
+    
     return res
       .status(200)
-      .send({ message: 'Organization created successfully!' });
+      .send({ message: 'Organization Admin created successfully!' ,token:newAdmin?.token});
   }
+
+
+
+  @Post("/organization/u/validateToken")
+  async validateToken(
+    @Body() Token:tokenDto,
+    @Res() res:Response,
+  ):Promise<any>{
+    const {token} = Token;
+    // console.log(token);
+    try{
+      if(!token){
+        return res.status(403).json({message:"Token is missing!!",status:false});
+      }
+      let isValidToken = await this.organizationAdminService.IsValidateToken(token);
+      console.log(isValidToken);
+
+      if(!isValidToken){
+        return res.status(403).json({message:"Invalid token!!",status:false})
+      }
+      let userAdmin = await this.organizationAdminService.findUserAdminById(isValidToken.id);
+      return res.status(200).json({isValidToken,status:true,userAdmin});
+    }catch(error){
+      return res.status(500).json({error,status:false});
+    }
+  }
+
+  @Post('organization/login')
+  async loginAdminOrganization(
+    @Body() adminloginDto: LoginAdminOrganization,
+    @Res() res: Response,
+  ): Promise<any> {
+    // console.log('data', createOrganizationDto);
+    let organizationAdmin = await this.organizationAdminService.validateOrganizationAdmin(
+        adminloginDto?.email,
+      );
+    
+    if (!organizationAdmin) {
+      return res
+        .status(403)
+        .send({ message: "Invalid Admin!!" });
+    }
+
+    let newAdmin = await this.organizationAdminService.loginAdminOrganization(
+      adminloginDto,
+    );
+
+    if (!newAdmin || !newAdmin?.admin?.id) {
+      return res.status(404).send({ message: 'Incorrect email or password' });
+    }
+    
+    return res
+      .status(200)
+      .send({ message: 'OrganizationAdmin Logged in succesfully !!' ,token:newAdmin?.token});
+  }
+
+
 }
