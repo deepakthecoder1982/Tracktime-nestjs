@@ -250,13 +250,14 @@ export class OnboardingController {
       }
 
       console.log('OrganizationId', OrganizationId);
-      let team =
-        await this.onboardingService.findALLteamForOrganization(OrganizationId);
+      let team = await this.onboardingService.findAllTeamsForOrganization(OrganizationId);
+      console.log("team",team)
       if (!team.length) {
         return res
           .status(404)
           .json({ message: 'No team in the organization Please create one!' });
       }
+      
       return res.json({ team: team });
     } catch (err) {
       return res
@@ -271,6 +272,7 @@ export class OnboardingController {
     @Req() req: Request,
   ): Promise<Response> {
     const organizationAdminId = req.headers['organizationAdminId'];
+
     const organizationAdminIdString = Array.isArray(organizationAdminId)
       ? organizationAdminId[0]
       : organizationAdminId;
@@ -284,14 +286,14 @@ export class OnboardingController {
     console.log('organizationAdminId', organizationAdminIdString);
 
     try {
-      const OrganizationId =
-        await this.organizationAdminService.findOrganizationById(
-          organizationAdminIdString,
-        );
+
+      const OrganizationId = await this.organizationAdminService.findOrganizationById(organizationAdminIdString);
+
       console.log('OrganizationId', OrganizationId);
-      const users = await this.onboardingService.findAllUsers(OrganizationId);
+      const users = await this.onboardingService.findAllUsers(OrganizationId); 
+
       console.log('users', users);
-      const images = await this.onboardingService.fetchScreenShot();
+      const images = await this.onboardingService.fetchScreenShot(); 
       // console.log("images",images)
       images.sort((a, b) => {
         const timeA = new Date(a.lastModified).getTime();
@@ -306,8 +308,8 @@ export class OnboardingController {
           if (userUUID === user?.userUUID && !user['LatestImage']) {
             user['LatestImage'] = img;
           }
-        });
-        return user;
+        }); 
+        return user; 
       });
 
       return res.status(200).json(users);
@@ -346,14 +348,13 @@ export class OnboardingController {
         return res.status(404).json({ error: 'Organization not found !!' });
       }
 
-      const devices =
-        await this.onboardingService.findAllDevices(OrganizationId);
+      const devices = await this.onboardingService.findAllDevices(OrganizationId);
+
       const users = await this.onboardingService.findAllUsers(OrganizationId);
-      console.log(users);
-      const images = await this.onboardingService.fetchScreenShot();
-      const organization =
-        await this.onboardingService.fetchAllOrganization(OrganizationId);
-      const teams = await this.onboardingService.getAllTeam(OrganizationId);
+      // console.log(devices); 
+      const images = await this.onboardingService.fetchScreenShot(); 
+      const organization = await this.onboardingService.fetchAllOrganization(OrganizationId);
+      const teams = await this.onboardingService.getAllTeam(OrganizationId); 
 
       /// addition of token authorization needed like which orgnaization is making request that will be send in headers and first decode it
       // and use it to fetch the details about organization's devices and team.

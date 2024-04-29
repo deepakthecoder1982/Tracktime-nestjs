@@ -163,7 +163,30 @@ export class OnboardingService {
     return await this.userRepository.find({where :{organizationId:Id}});
   }
   async findAllDevices(organId:string): Promise<Devices[]> {
-    return await this.devicesRepository.find({where:{organization_uid:organId}});
+    console.log("organId",organId);
+    let devices =  await this.devicesRepository.find({where:{organization_uid:organId}});
+    let deviceInfo = await this.userActivityRepository.find({where:{organization_id:organId}});
+
+    if(!devices?.length){
+        return null;
+    }
+    console.log("devices: " + devices)
+    console.log("devicesInfo: " +deviceInfo)
+
+    devices = devices.map(item=>{
+      console.log("device: " + item)
+      deviceInfo.map(itemInfo=>{
+        // console.log("status",itemInfo?.user_uid === item?.device_uid)
+        if(itemInfo?.user_uid === item?.device_uid){
+          item["deviceInfo"] = itemInfo;
+        }
+        return itemInfo;
+      })
+      return item;
+    })
+    
+    console.log("devices",devices.map(item=>console.log(item["deviceInfo"])));
+    return devices; 
   }
   async fetchAllOrganization(organId:string): Promise<Organization> {
     return await this.organizationRepository.findOne({where:{id:organId}});
@@ -358,7 +381,7 @@ export class OnboardingService {
       }
 
       // Assuming your User entity has a 'config' field
-      // const { config } = user;
+      // const { config } = user; 
 
       const configUser = await this.userRepository.findOne({where :{userUUID:user?.user_uid}});
       const isPaid = await this.SubscriptionRepository.findOne({where :{organization_id:organizationId}});
@@ -385,14 +408,27 @@ export class OnboardingService {
     }
   } 
 
-async findALLteamForOrganization(orgId:string): Promise<any>{
-  try {
-    let organizationTeam = await this.teamRepository.find({where :{organizationId:orgId}}); 
-    return organizationTeam;
-  } catch (error) {
-    throw new BadRequestException(`Error:- ${error}`);
-  }
-} 
+  async findAllTeamsForOrganization(orgId: string): Promise<any> {
+    try {
+        const organizationTeams = await this.teamRepository.find({ where: { organizationId: orgId } });
+        if (organizationTeams?.length) {
+            const teamData = await Promise.all(organizationTeams.map(async (team) => {
+                const teamMembers = await this.userRepository.find({ where: { teamId: team.id } });
+                return {
+                    ...team,
+                    teamMembersCount: teamMembers.length,
+                    teamMembers: teamMembers
+                };
+            }));
+            console.log("Team data: ", teamData);
+            return teamData;
+        }
+        return [];
+    } catch (error) {
+        throw new BadRequestException(`Error: ${error.message}`);
+    }
+}
+
 
  async findTeamForOrganization(organId:string,teamId:string):Promise<any>{
   try {
