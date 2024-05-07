@@ -16,7 +16,7 @@ class userConfig{
   @IsEnum(TrackTimeStatus)
   trackTimeStatus: TrackTimeStatus
 }
-
+ 
 @Entity("users") 
 export class User {
   @PrimaryGeneratedColumn('uuid')

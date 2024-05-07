@@ -294,14 +294,19 @@ export class OnboardingController {
 
       console.log('users', users);
       const images = await this.onboardingService.fetchScreenShot(); 
+      const teams = await this.onboardingService.getAllTeam(OrganizationId);
+      const devices = await this.onboardingService.findAllDevices(OrganizationId);
       // console.log("images",images)
       images.sort((a, b) => {
         const timeA = new Date(a.lastModified).getTime();
         const timeB = new Date(b.lastModified).getTime();
         return timeB - timeA;
       });
+
       users.map((user) => {
         user['LatestImage'] = null;
+        user["team"] = null;
+        user["device"] = null;
         images.map((img) => {
           const userUUID = img?.key.split('/')[1].split('|')[1].split('.')[0];
           // console.log(userUUID)
@@ -309,6 +314,19 @@ export class OnboardingController {
             user['LatestImage'] = img;
           }
         }); 
+        teams.map(team=>{
+          if(user.teamId == team.id){
+            user['team'] = team;
+          }
+          return team
+        })
+        devices.map(device=>{
+          if(device.user_uid == user?.userUUID){
+            user["device"] = device;
+          }
+          return device;
+        })
+
         return user; 
       });
 
@@ -351,7 +369,6 @@ export class OnboardingController {
       const devices = await this.onboardingService.findAllDevices(OrganizationId);
 
       const users = await this.onboardingService.findAllUsers(OrganizationId);
-      // console.log(devices); 
       const images = await this.onboardingService.fetchScreenShot(); 
       const organization = await this.onboardingService.fetchAllOrganization(OrganizationId);
       const teams = await this.onboardingService.getAllTeam(OrganizationId); 
@@ -576,7 +593,7 @@ export class OnboardingController {
       console.log('user email', userData?.email);
       let isUserExist = await this.onboardingService.ValidateUserByGmail(
         userData?.email,
-      );
+      ); 
       console.log('isUserExist', isUserExist);
       // if (isUserExist?.email) {
       //   return res
@@ -591,7 +608,7 @@ export class OnboardingController {
         });
         console.log('User registered here...');
       }
-
+      
       const uniqueDeviceCreation =
         await this.onboardingService.createDeviceForUser(
           isUserExist?.organizationId,
@@ -619,19 +636,6 @@ export class OnboardingController {
 
       let configContents = fs.readFileSync(configFilePath, 'utf8');
 
-      // let configContents = "";
-      //  fs.readFile(configFilePath, 'utf-8',(err,data)=>{
-      //   if(err){
-      //     console.log(err?.message);
-      //     return err?.message;
-      //   }
-      //   // console.log(data);
-      //   configContents = data;
-      //   // return data.toString();
-      // });
-
-      // console.log(configContents)
-
       const updatedConfig = configContents.replace(
         /device_id=\w+/gi,
         `device_id=${encryptedDeviceId}`,
@@ -651,6 +655,7 @@ export class OnboardingController {
       // });
       // return { message: 'User registered successfully', user: newUser };
     } catch (error) {
+      console.log(error)
       return res.status(500).json({
         message: 'Failed to register user',
         error: error,
@@ -665,7 +670,7 @@ export class OnboardingController {
     return encrypted;
   }
 
-  @Post('/users/configStatus')
+  @Post('users/configStatus')
   async getConfig(@Req() req, @Res() res, @Body() Body): Promise<any> {
     const device_id = req.headers['device-id']; // Extract device ID from headers
     const organizationId = Body?.organizationId; // Extract organization ID from headers
@@ -679,7 +684,7 @@ export class OnboardingController {
 
       const isExistorganization =
         await this.onboardingService.validateOrganization(organizationId);
-      // console.log("isExistorganization",isExistorganization)
+      console.log("isExistorganization",isExistorganization)
       if (!isExistorganization) {
         return res
           .status(401)
@@ -705,7 +710,7 @@ export class OnboardingController {
         checkMacAddres = await createNewUser;
       }
 
-      console.log('checkMacAddres', checkMacAddres);
+      console.log('device-id', checkMacAddres);
 
       let userConfig = await this.onboardingService.getUserConfig(
         checkMacAddres.toString(),
@@ -738,7 +743,7 @@ export class OnboardingController {
         .status(202)
         .json({ config: userConfig, device_id: checkMacAddres });
     } catch (error) {
-      return res.status(500).json({ message: 'Failed to fetch user config' });
+      return res.status(500).json({ message: 'Failed to fetch user config',error:error?.message });
     }
   }
 }

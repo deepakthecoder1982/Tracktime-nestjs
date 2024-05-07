@@ -14,7 +14,12 @@ export class OnbaordingAuthMiddleware implements NestMiddleware {
     console.log("token before spliting",req.header["authorization"]);
     const token = req.headers['authorization']?.split(' ')[1]; // Example token retrieval
     // const organizationId = req.headers["organizationId"];
-  console.log(token)
+  // console.log(token)
+  console.log(req?.url)
+  if(req?.url ==="/onboarding/users/configStatus"){
+    next();
+    return;
+  }
     if (!token) {
       return res.status(401).json({ message: 'No token provided' });
     }

@@ -90,13 +90,14 @@ import { OnbaordingAuthMiddleware } from './middleware/OnboardingAuth.middleware
 })
 
 
-export class AppModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) {
+export class AppModule implements NestModule { 
+  configure(consumer: MiddlewareConsumer) { 
     consumer
       .apply(OnbaordingAuthMiddleware)
       .exclude(
         { path: '', method: RequestMethod.ALL },
         { path: '/*', method: RequestMethod.ALL },
+        { path: 'auth/*', method: RequestMethod.ALL },
         { path: 'auth/*', method: RequestMethod.ALL },
       )
       .forRoutes(
@@ -108,4 +109,4 @@ export class AppModule implements NestModule {
       );
   }
 }
-// export class AppModule {}
+// export class AppModule {} 

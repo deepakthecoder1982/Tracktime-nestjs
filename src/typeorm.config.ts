@@ -33,8 +33,9 @@ const typeOrmConfig: TypeOrmModuleOptions = {
   database:"tracktime_db",
   entities:[__dirname + "/**/*.entity{.ts,.js}"],
   synchronize:false
-};
+}; 
 
-export default typeOrmConfig;
+export default typeOrmConfig;   
 
 
+  

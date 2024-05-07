@@ -5,7 +5,10 @@ export class Devices {
   @PrimaryGeneratedColumn('uuid')
   device_uid: string;
 
-  @Column({ type: 'uuid' })
+  @Column()
+  device_name:string;
+
+  @Column({ type: 'uuid' }) 
   organization_uid: string;
 
   @Column()

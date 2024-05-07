@@ -167,10 +167,10 @@ export class OnboardingService {
     let devices =  await this.devicesRepository.find({where:{organization_uid:organId}});
     let deviceInfo = await this.userActivityRepository.find({where:{organization_id:organId}});
 
+    console.log("devices: " + devices)
     if(!devices?.length){
         return null;
     }
-    console.log("devices: " + devices)
     console.log("devicesInfo: " +deviceInfo)
 
     devices = devices.map(item=>{
@@ -300,37 +300,57 @@ export class OnboardingService {
     return false; 
   }
 
-  async createDeviceForUser(organization_uid:string,userName:string,email:string,user_uid:string,mac_address:string):Promise<String>{
-    
-    const isDeviceAlreadyExist = await this.devicesRepository.findOne({where:{user_uid:user_uid}});
-    console.log(isDeviceAlreadyExist);
-    if(isDeviceAlreadyExist) {
-      return isDeviceAlreadyExist?.device_uid;
-    }
-    const deviceForUser = await this.devicesRepository.create({
-      organization_uid,
-      user_name:userName,
-      user_uid:user_uid ? user_uid :null,
-      mac_address:mac_address?mac_address:null,
-    }) 
-    
-    const errors = await validate(deviceForUser);
- 
-    if (errors.length > 0) {
-      throw new BadRequestException(errors);
-    }
-   const device = await this.devicesRepository.save(deviceForUser);
-   console.log(device)
-    return device?.device_uid;
-  }
+  async createDeviceForUser(organization_uid: string, userName: string, email: string, user_uid: string, mac_address: string): Promise<string> {
+    console.log("Entering device creation");
 
+    // Check if a device already exists for the user
+    const isDeviceAlreadyExist = await this.devicesRepository.findOne({ where: { user_uid: user_uid } });
+    console.log("Device already exists:", isDeviceAlreadyExist);
+    
+    if (isDeviceAlreadyExist) {
+        return isDeviceAlreadyExist.device_uid;
+    }
+    
+    // Efficiently find the last device with the highest number
+    const lastDevice = await this.devicesRepository.createQueryBuilder("device")
+                        .orderBy("device.device_name", "DESC")
+                        .getOne();
+
+    let nextDeviceNumber = 1;
+    if (lastDevice?.device_name) {
+        const lastNumber = parseInt(lastDevice.device_name.split('-')[1]);  // Assuming device name format "Device-X"
+        nextDeviceNumber = lastNumber + 1;
+    }
+    
+    const deviceName = `Device-${nextDeviceNumber}`;
+
+    // Create the device for the user
+    console.log(deviceName)
+    const deviceForUser = await this.devicesRepository.create({
+        organization_uid,
+        user_name: userName,
+        user_uid: user_uid ? user_uid : null,
+        mac_address: mac_address ? mac_address : null,
+        device_name: deviceName
+    });
+    
+    // Save the new device to the database
+    await this.devicesRepository.save(deviceForUser);  // Make sure to save the new device
+    console.log("deviceForUser",deviceForUser)
+
+    console.log("Created device:", deviceForUser.device_uid);
+    return deviceForUser.device_uid; 
+}
+
+
+ 
   async getUserDeviceId(deviceId:string){
     try {
       
       const device = await this.devicesRepository.find({where :{device_uid:deviceId}});
 
       console.log(device); 
-      
+       
       return device;
 
     } catch (error) {
