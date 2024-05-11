@@ -68,28 +68,31 @@ export class OrganizationAdminController {
 
 
   @Post("/organization/u/validateToken")
-  async validateToken(
-    @Body() Token:tokenDto,
-    @Res() res:Response,
-  ):Promise<any>{
-    const {token} = Token;
-    // console.log(token);
-    try{
-      if(!token){
-        return res.status(403).json({message:"Token is missing!!",status:false});
-      }
-      let isValidToken = await this.organizationAdminService.IsValidateToken(token);
-      console.log(isValidToken);
-
-      if(!isValidToken){
-        return res.status(403).json({message:"Invalid token!!",status:false})
-      }
-      let userAdmin = await this.organizationAdminService.findUserAdminById(isValidToken.id);
-      return res.status(200).json({isValidToken,status:true,userAdmin});
-    }catch(error){
-      return res.status(500).json({error,status:false});
+async validateToken(
+  @Body() Token: tokenDto,
+  @Res() res: Response
+): Promise<any> {
+  const { token } = Token;
+  // console.log(token);
+  try {
+    if (!token) {
+      return res.status(400).json({ message: "Token is missing!", status: false });
     }
+    let isValidToken = await this.organizationAdminService.IsValidateToken(token);
+    console.log(isValidToken);
+
+    if (!isValidToken) {
+      return res.status(401).json({ message: "Invalid token!", status: false });
+    }
+    
+    let userAdmin = await this.organizationAdminService.findUserAdminById(isValidToken.id);
+    return res.status(200).json({ isValidToken, status: true, userAdmin });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message, status: false });
   }
+}
+
 
   @Post('organization/login')
   async loginAdminOrganization(

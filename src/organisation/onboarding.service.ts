@@ -94,13 +94,13 @@ export class OnboardingService {
   
 
   async createDesktopApplication(data: any): Promise<DesktopApplication> {
-
+    console.log(data);
     const desktopApp = new DesktopApplication();
-    desktopApp.name = data.name;
+    desktopApp.name = data?.name;
     desktopApp.logo = data?.logo || "http://example.com/favicon.ico";
     desktopApp.type = data?.type || "application";
     desktopApp.version = data?.version || "1.0.0";
-    desktopApp.organizationId = data?.organizationUUID;
+    desktopApp.organizationId = data?.organizationId;
 
     // let error = validate(desktopApp);
     // if(error?.length > 0) {
@@ -120,7 +120,10 @@ export class OnboardingService {
   }
   
   async createTeam(createTeamDto: CreateTeamDto): Promise<Team> {
-
+    const teamId = await this.teamRepository.findOne({where:{name:createTeamDto.name}});
+    if(teamId?.id){
+      return teamId;
+    }
     const team = await this.teamRepository.create({ name: createTeamDto?.name });
     const organization = await this.organizationRepository.findOne({where:{id:createTeamDto?.organizationId}});
     
@@ -286,9 +289,8 @@ export class OnboardingService {
     
   }
 
-  async getAllUserActivityData():Promise<UserActivity[]>{
-    const userData = await this.userActivityRepository.find();
-   
+  async getAllUserActivityData(organId:string):Promise<UserActivity[]>{
+    const userData = await this.userActivityRepository.find({where :{organization_id:organId}});
     return userData;
   }
 
@@ -449,15 +451,29 @@ export class OnboardingService {
     }
 }
 
+async findTeamForOrganizationWithId(organId: string,teamId:string): Promise<Team>{
+  try{
+    let isExistTeam = await this.teamRepository.findOne({where:{id:teamId}});
+
+    // if(isExistTeam?.id){
+
+    // }
+      return isExistTeam;
+
+  }catch(err){
+    throw new BadRequestException(`Error:- ${err?.message}`);
+  }
+}
 
  async findTeamForOrganization(organId:string,teamId:string):Promise<any>{
   try {
     let isExitTeam = await this.teamRepository.find({where :{organizationId:organId}});
+
     if(!isExitTeam.length) {
       return false;
     }
-    let team = isExitTeam.find(team=>team.id == teamId);
-    return team?.id
+    let team = isExitTeam.find(team=>team.name == teamId);
+    return team;
     
   } catch (error) {
     throw new BadRequestException(`Error:- ${error}`);

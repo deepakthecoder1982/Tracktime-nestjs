@@ -80,7 +80,8 @@ export class organizationAdminService {
     try {
       return await this.jwtService.verifyAsync(token);
     } catch (error) {
-      throw new BadRequestException('Invalid token');
+      // throw new BadRequestException('Invalid token');
+      return null;
     }
     
     // if(!validateToken){

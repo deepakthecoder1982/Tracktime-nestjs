@@ -17,6 +17,6 @@ export class Devices {
   @Column({ type: 'uuid' })
   user_uid: string;
 
-  @Column({type: 'varchar',length:17})  
+  @Column({type: 'varchar',length:17,nullable:true})  
   mac_address:string;
 }

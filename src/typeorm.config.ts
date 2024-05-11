@@ -14,25 +14,24 @@ const rejectUnauthorized = dbUrl.includes('rejectUnauthorized=true');
 
 // TypeORM configuration with SSL
 const typeOrmConfig: TypeOrmModuleOptions = {
-  // type: 'mysql',
-  // url: dbUrl,
-  // extra: {
-  //   ssl: {
-  //     rejectUnauthorized: rejectUnauthorized,
-  //   },
-  // },
-  // entities: [__dirname + '/**/*.entity{.ts,.js}'],
-  // synchronize: false, // Turn off auto-synchronization
-
+  type: 'mysql',
+  url: dbUrl,
+  extra: {
+    ssl: {
+      rejectUnauthorized: rejectUnauthorized,
+    },
+  }, 
+  entities: [__dirname + '/**/*.entity{.ts,.js}'],
+  synchronize: false, // Turn off auto-synchronization
+ 
   // for local host
-  type:"mysql",
-  host:"localhost",
-  port:3306,
-  username:'root',
-  password:"", 
-  database:"tracktime_db",
-  entities:[__dirname + "/**/*.entity{.ts,.js}"],
-  synchronize:false
+  // type:"mysql",
+  // host:"localhost",
+  // username:'root',
+  // password:"", 
+  // database:"tracktime_db",
+  // entities:[__dirname + "/**/*.entity{.ts,.js}"],
+  // synchronize:false
 }; 
 
 export default typeOrmConfig;   

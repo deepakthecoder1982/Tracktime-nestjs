@@ -21,9 +21,9 @@ export class Organization {
   @IsNotEmpty()
   country: string; // Assuming there's a country field
 
-  @Column('int')
+  // @Column('int')
   @IsNotEmpty()
-  teamSize: number; // Changed type to 'int' to reflect 'INTEGER'
+  teamSize: string; // Changed type to 'int' to reflect 'INTEGER'
 
   @Column()
   @IsNotEmpty()

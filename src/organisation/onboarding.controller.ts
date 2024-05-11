@@ -43,8 +43,10 @@ export class OnboardingController {
   ): Promise<Organization> {
     let token = req?.headers['authorization'];
     token = token?.split(' ')[1];
-    if (!token) {
-      return res.status(404).json({ Error: 'Token is missing!!' });
+    try{
+
+      if (!token) {
+        return res.status(404).json({ Error: 'Token is missing!!' });
     }
 
     let isValidToken =
@@ -64,7 +66,7 @@ export class OnboardingController {
         organizationExist?.id,
       );
       return res
-        .status(200)
+      .status(200)
         .json({ Error: 'Organization Already Exist!!', organizationExist });
     }
     let newOrganization = await this.onboardingService.createOrganization(
@@ -77,6 +79,13 @@ export class OnboardingController {
     return res
       .status(201)
       .json({ Error: 'Organization Created successfully !!', newOrganization });
+    }catch(err){
+      console.log(err)
+      return res.status(500).json({
+        message: 'Failed to register organizations !!',
+        error: err?.message,
+      });
+    }
   }
 
   @Get('/users/screenshots')
@@ -97,11 +106,11 @@ export class OnboardingController {
       }
 
       const images = await this.onboardingService.fetchScreenShot();
-      const userData = await this.onboardingService.getAllUserActivityData();
+      const userData = await this.onboardingService.getAllUserActivityData(OrganizationId);
       const getUsersInDb = await this.onboardingService.findAllDevices(
         OrganizationId,
       );
-      // console.log(images);
+      console.log("images",images);
       // console.log(userData);
       let finalData = userData.map((user) => {
         // console.log(user);
@@ -145,6 +154,8 @@ export class OnboardingController {
       if (!OrganizationId) {
         return res.status(404).json({ error: 'Organization not found !!' });
       }
+
+      console.log("OrganizationId",OrganizationId);
       let isExistingDesktopApplication =
         await this.onboardingService.findDesktopApplication(OrganizationId);
 
@@ -156,10 +167,12 @@ export class OnboardingController {
           isExistingDesktopApplication,
         });
       }
+      console.log(isExistingDesktopApplication,"isExistingDesktopApplication")
       createDesktopApplicationDto['organizationId'] = OrganizationId;
       let newDesktopApp = await this.onboardingService.createDesktopApplication(
         createDesktopApplicationDto,
       );
+      console.log(newDesktopApp,"new Desktop Application");
       return res.status(201).json({
         message: 'Sucesssfully Desktop App created for the organization !!',
         newDesktopApp,
@@ -199,7 +212,7 @@ export class OnboardingController {
 
       console.log('isExistingTeamMember', isExistingTeamMember);
 
-      if (isExistingTeamMember) {
+      if (isExistingTeamMember?.id) {
         return res.status(200).json({
           message: 'Team member already exists !!',
           team: isExistingTeamMember,
@@ -549,83 +562,55 @@ export class OnboardingController {
     @Req() req,
   ): Promise<any> {
     const organizationAdminId = req.headers['organizationAdminId'];
-    const OrganizationId =
-      await this.organizationAdminService.findOrganizationById(
-        organizationAdminId,
-      );
+    const OrganizationId = await this.organizationAdminService.findOrganizationById(organizationAdminId);
     if (!OrganizationId) {
       return res.status(404).json({ error: 'Organization not found !!' });
     }
-    // const isAdmin = userData.isAdmin !== undefined ? userData.isAdmin : false;
+  
     const organizationId = OrganizationId;
     const teamId = userData?.teamId;
     try {
-      // Default config for new users
-      const defaultConfig = {
-        trackTimeStatus: TrackTimeStatus.Resume,
-      };
-      console.log('organizationId', organizationId, 'teamId', teamId);
-
       if (!organizationId || !teamId) {
         return res.status(401).send({
-          message: 'Orgnaization or teams are allowed to create users user.',
+          message: 'Organization or teams are required to create users.',
         });
       }
-      const isValidOrganization =
-        await this.onboardingService.validateOrganization(organizationId);
-
+  
+      const isValidOrganization = await this.onboardingService.validateOrganization(organizationId);
       if (!isValidOrganization) {
         return res.status(401).send({ message: 'Not a valid organization' });
       }
-      const isValidTeam = await this.onboardingService.findTeamForOrganization(
-        organizationId,
-        teamId,
-      );
-      console.log(isValidTeam);
-
-      if (!isValidTeam) {
+  
+      const isValidTeam = await this.onboardingService.findTeamForOrganizationWithId(organizationId, teamId);
+      if (!isValidTeam?.id) {
         return res.status(401).send({ message: 'Not a valid team' });
       }
-
-      // validate here teamId and also the orangizationId also that is that team which had requestwhile adding
-      // the team is that team exist in that
-      // orgnaization
-      console.log('user email', userData?.email);
-      let isUserExist = await this.onboardingService.ValidateUserByGmail(
-        userData?.email,
-      ); 
-      console.log('isUserExist', isUserExist);
-      // if (isUserExist?.email) {
-      //   return res
-      //     .status(401)
-      //     .send({ message: 'User already exists', user: isUserExist?.email });
-      // }
+  
+      let isUserExist = await this.onboardingService.ValidateUserByGmail(userData?.email);
       if (!isUserExist?.email) {
         userData['organizationId'] = organizationId;
-
-        isUserExist = await this.userService.registerUser({
-          ...userData,
-        });
+  
+        isUserExist = await this.userService.registerUser({ ...userData });
         console.log('User registered here...');
       }
-      
-      const uniqueDeviceCreation =
-        await this.onboardingService.createDeviceForUser(
-          isUserExist?.organizationId,
-          isUserExist?.userName,
-          isUserExist?.email,
-          isUserExist?.userUUID,
-          '',
-        );
-
+  
+      const uniqueDeviceCreation = await this.onboardingService.createDeviceForUser(
+        isUserExist?.organizationId,
+        isUserExist?.userName,
+        isUserExist?.email,
+        isUserExist?.userUUID,
+        '',
+      );
+  
       if (!uniqueDeviceCreation) {
         return res.status(400).send({ message: 'Device creation failed' });
       }
-
+  
       const key = 'an example very very secret key.'; // Replace with a strong secret key
       const iv = crypto.randomBytes(16);
       const encryptedDeviceId = this.encryptData(uniqueDeviceCreation, key, iv);
-
+      const encryptedOrganizationId = this.encryptData(organizationId, key, iv);
+  
       const configFilePath = path.join(
         process.cwd(),
         'src',
@@ -634,34 +619,49 @@ export class OnboardingController {
         'dev_config.txt',
       );
 
-      let configContents = fs.readFileSync(configFilePath, 'utf8');
+      console.log("encrypted Organization id",encryptedOrganizationId);
+      console.log("encrypted device id",encryptedDeviceId);
 
-      const updatedConfig = configContents.replace(
-        /device_id=\w+/gi,
-        `device_id=${encryptedDeviceId}`,
-      );
-      fs.writeFileSync(configFilePath, updatedConfig);
+  
+      // let configContents = fs.readFileSync(configFilePath, 'utf8');
+      // let updatedConfig = configContents
+      //   .replace(/device_id=\w+/gi, `device_id=${encryptedDeviceId}`);
 
-      // Send the file as attachment
-      res.set({
-        'Content-Disposition': 'attachment; filename=dev_config.txt',
-        'Content-Type': 'text/plain',
-      });
-      return res.status(201).send(updatedConfig);
-      // return res.status(201).json({
-      //   message: 'User registered successfully',
-      //   user: newUser,
-      //   uniqueDeviceCreation,
-      // });
-      // return { message: 'User registered successfully', user: newUser };
+      // config.replace(/organizationId=\w+/gi, `organizationId=${encryptedOrganizationId}`);
+      try {
+          let configContents = fs.readFileSync(configFilePath, 'utf8');
+          const updatedConfig = configContents
+            .replace(/device_id=[^\n]*/gi, `device_id=${encryptedDeviceId}`)
+            .replace(/organizationId=[^\n]*/gi, `organizationId=${encryptedOrganizationId}`);
+         
+          fs.writeFileSync(configFilePath, updatedConfig);
+          console.log('Config file updated successfully');
+
+          res.set({ 
+            'Content-Disposition': 'attachment; filename=dev_config.txt',
+            'Content-Type': 'text/plain',
+          });
+          return res.status(201).send(updatedConfig);
+
+        } catch (err) {
+
+          console.error('Error updating config file:', err);
+          return res.status(500).json({
+            message: 'Failed to update configuration file',
+            error: err.message,
+          });
+
+        }        
+      
     } catch (error) {
-      console.log(error)
+      console.error(error)
       return res.status(500).json({
         message: 'Failed to register user',
-        error: error,
+        error: error.message,
       });
     }
   }
+  
 
   private encryptData(data: String, key: string, iv: Buffer): string {
     const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(key), iv);
@@ -728,7 +728,7 @@ export class OnboardingController {
       // }
       // if (!userConfig) {
       //   return res.status(404).json({ message: 'User not found' });
-      // }
+      // } 
 
       // const isPaidUser = await this.userService.isUserPaid(userId);
       // // Construct response with user's config and track time status
