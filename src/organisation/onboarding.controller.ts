@@ -691,15 +691,25 @@ export class OnboardingController {
           .json({ message: "Organization with Id doesn't exist" });
       }
       // let userExist = await this.onboardingService.findUserByEmail(email);
-
-      let checkMacAddres = await this.onboardingService.checkDeviceIdExist(
-        mac_address,
-        username,
-      );
+      let deviceExist = "";
+      if(device_id) {
+        let checkDeviceId = await this.onboardingService.checkDeviceIdExistWithDeviceId(
+          device_id,
+          username,
+        );
+        deviceExist = checkDeviceId;
+      }else {
+        let checkMacAddres = await this.onboardingService.checkDeviceIdExist(
+          mac_address,
+          username,
+        );
+        deviceExist = checkMacAddres;
+      }
       // creating device for users here
+      console.log("deviceExist",deviceExist);
       const user_uuid = '';
       const email = '';
-      if (!checkMacAddres) {
+      if (!deviceExist) {
         let createNewUser = await this.onboardingService.createDeviceForUser(
           organizationId,
           username,
@@ -707,13 +717,13 @@ export class OnboardingController {
           user_uuid,
           mac_address,
         );
-        checkMacAddres = await createNewUser;
+        deviceExist = await createNewUser;
       }
 
-      console.log('device-id', checkMacAddres);
+      console.log('device-id', deviceExist);
 
       let userConfig = await this.onboardingService.getUserConfig(
-        checkMacAddres.toString(),
+        deviceExist.toString(),
         organizationId,
       );
       // Retrieve user config and track time status based on user ID
@@ -739,9 +749,10 @@ export class OnboardingController {
       //     // Other user-specific config details here
       //   },
       // };
+      console.log(deviceExist,"deviceExist",userConfig,"userConfig")
       return res
         .status(202)
-        .json({ config: userConfig, device_id: checkMacAddres });
+        .json({ config: userConfig, device_id: deviceExist });
     } catch (error) {
       return res.status(500).json({ message: 'Failed to fetch user config',error:error?.message });
     }
