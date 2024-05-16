@@ -165,6 +165,10 @@ export class OnboardingService {
   async findAllUsers(Id:string): Promise<User[]> {
     return await this.userRepository.find({where :{organizationId:Id}});
   }
+
+  async findUserById(Id:string): Promise<User> {
+    return await this.userRepository.findOne({where :{userUUID:Id}});
+  }
   async findAllDevices(organId:string): Promise<Devices[]> {
     console.log("organId",organId);
     let devices =  await this.devicesRepository.find({where:{organization_uid:organId}});
@@ -198,10 +202,11 @@ export class OnboardingService {
     return await this.teamRepository.find({where:{organizationId:organId}});
   }
  // In your OnboardingService
-  async getUserDetails(organId,id: string,page:number,limit:number): Promise<UserActivity[]> {
+  async getUserDetails(organId:string,id: string,page:number,limit:number): Promise<UserActivity[]> {
     //If findOneBy is not recognized or you prefer a more explicit approach, use findOne:
     //apply here the logic for sorting the data in timing format and then get's teh data wanted
     const FetchedData = await this.userActivityRepository.find({where:{user_uid:id}});
+    console.log("fetched data", FetchedData)
     const ImgData = await this.fetchScreenShot();
     const userData = await this.findAllDevices(organId);
 
@@ -291,6 +296,7 @@ export class OnboardingService {
 
   async getAllUserActivityData(organId:string):Promise<UserActivity[]>{
     const userData = await this.userActivityRepository.find({where :{organization_id:organId}});
+    console.log(userData);
     return userData;
   }
 
