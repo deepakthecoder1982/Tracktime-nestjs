@@ -377,10 +377,12 @@ export class OnboardingService {
 
   async checkDeviceIdExist(mac_address :string ,device_user_name :string):Promise<string>{
     try{
-      const isExist = await this.devicesRepository.findOne({where:{mac_address:mac_address}
+      const isExist = await this.devicesRepository.findOne({where:{mac_address}
         // where : {user_name:device_user_name} 
       });
-      console.log(isExist);
+      console.log("mac_address",mac_address);
+      console.log("device-user-name",device_user_name);
+      console.log("isExist",isExist);
       if(isExist?.user_name && isExist?.user_name.toLowerCase() === device_user_name.toLowerCase()){
         return isExist?.device_uid;
       }
@@ -392,17 +394,23 @@ export class OnboardingService {
       return null;
     }
   }
-  async checkDeviceIdExistWithDeviceId(device_id :string ,device_user_name :string):Promise<string>{
+  async checkDeviceIdExistWithDeviceId(mac_address:string,device_id :string ,device_user_name :string):Promise<string>{
     try{
-      const isExist = await this.devicesRepository.findOne({where:{device_uid:device_id}
+      let isExist = await this.devicesRepository.findOne({where:{device_uid:device_id}
         // where : {user_name:device_user_name} 
       });
+
+      if(!isExist?.mac_address && mac_address ){
+        isExist = await this.devicesRepository.findOne({where:{mac_address:mac_address}});
+      }
+
       console.log(isExist);
+      
       if(isExist?.user_name && isExist?.user_name.toLowerCase() === device_user_name.toLowerCase()){
         return isExist?.device_uid;
       }
       console.log(isExist?.user_name, device_user_name,isExist?.user_name==device_user_name);
-
+      
       return null;
     }catch(err){
       console.log(err?.message)
@@ -510,4 +518,22 @@ async findTeamForOrganizationWithId(organId: string,teamId:string): Promise<Team
     throw new BadRequestException(`Error: ${err}`);
   }
  } 
+
+ async validateDeviceById(id:string):Promise<Devices>{
+  const device = await this.devicesRepository.findOne({where:{device_uid:id}});
+  
+  return device;
+ }
+ async updateDevice(device: Devices): Promise<Devices> {
+  return await this.devicesRepository.save(device);
+}
+async validateUserIdLinked(userId:string,deviceId:string): Promise<any> {
+  const isExist = await this.devicesRepository.findOne({where: {user_uid:userId}});
+  if(isExist?.device_uid){
+    isExist.user_uid = null;
+  }
+  await this.devicesRepository.save(isExist);
+  return isExist.device_uid;
+}
+  
 }
