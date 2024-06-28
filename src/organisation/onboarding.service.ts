@@ -16,13 +16,14 @@ import { Devices } from './devices.entity';
 import { validate } from 'class-validator';
 import { Subscription } from './subscription.entity';
 import axios from 'axios';
-
+const DeployFlaskBaseApi = "https://python-link-classification.onrender.com";
+const LocalFlaskBaseApi = "http://127.0.0.1:5000";
 type UpdateConfigType = DeepPartial<User['config']>;
-
+ 
 @Injectable()
 export class OnboardingService {
   private s3:S3;
-  private flaskApiUrl = 'http://127.0.0.1:5000/calculate_hourly_productivity' // Flask API URL
+  private flaskApiUrl = `${DeployFlaskBaseApi}/calculate_hourly_productivity` // Flask API URL
   constructor(
     @InjectRepository(Organization)
     private organizationRepository: Repository<Organization>,
