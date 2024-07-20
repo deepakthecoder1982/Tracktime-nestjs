@@ -30,7 +30,7 @@ export class OnboardingService {
   // private flaskApiUrl = `${LocalFlaskBaseApi}/calculate_hourly_productivity?date=2024-06-28`; // Flask API URL
   // private flaskApiUrl = `${LocalFlaskBaseApi}/calculate_hourly_productivity?date=2024-07-14`; // Flask API URL
   private flaskBaseApiUrl = `${LocalFlaskBaseApi}/calculate_hourly_productivity`
-  constructor(
+  constructor( 
     @InjectRepository(Organization)
     private organizationRepository: Repository<Organization>,
     @InjectRepository(DesktopApplication)
