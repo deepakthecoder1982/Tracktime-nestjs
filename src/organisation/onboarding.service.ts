@@ -318,30 +318,28 @@ export class OnboardingService {
   }
 
   //service for updating user configs
-  async updateUserConfig(id: string, status: string): Promise<User> {
+  async updateUserConfig(id: string, status: string): Promise<Devices> {
     if (!id) {
       return null;
     }
 
-    let userDetails = await this.userRepository.findOne({
-      where: { userUUID: id },
+    let userDetails = await this.devicesRepository.findOne({
+      where: { device_uid: id },
     });
 
     if (!userDetails) {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
+    // console.log('status',status);
     let updatedConfig: UpdateConfigType = {
       trackTimeStatus: status as TrackTimeStatus,
     };
     try {
-      await this.userRepository.update(
-        { userUUID: id },
+      await this.devicesRepository.update(
+        { device_uid: id },
         { config: updatedConfig },
       );
-
-      userDetails = await this.userRepository.findOne({
-        where: { userUUID: id },
-      });
+      userDetails = await this.devicesRepository.findOne({ where :{device_uid:id}});
       return userDetails;
     } catch (error) {
       console.log(`Failed to update user configuration: ${error.message}`);
@@ -503,7 +501,7 @@ export class OnboardingService {
         isExist?.user_name == device_user_name,
       );
 
-      return null;
+      return isExist?.device_uid;
     } catch (err) {
       console.log(err?.message);
       return null;
@@ -517,30 +515,31 @@ export class OnboardingService {
         where: { device_uid: deviceId },
       });
 
-      if (!user?.user_uid) {
+      if (!user?.device_uid) {
         return {
           tracktimeStatus: 'Resume',
           isPaid: false,
         };
       }
 
+
       // Assuming your User entity has a 'config' field
       // const { config } = user;
 
-      const configUser = await this.userRepository.findOne({
-        where: { userUUID: user?.user_uid },
+      const configUser = await this.devicesRepository.findOne({
+        where: { device_uid: user?.user_uid },
       });
       const isPaid = await this.SubscriptionRepository.findOne({
         where: { organization_id: organizationId },
       });
-      const config = configUser.config;
       // Return the user's configuration and track time status or modify as needed
 
       console.log('user', user);
       return {
-        trackTimeStatus: config?.trackTimeStatus || 'Resume',
-        isPaid: config ? true : false,
+        trackTimeStatus: configUser?.config.trackTimeStatus || 'Resume',
+        isPaid: isPaid ? true : false,
       };
+      
     } catch (error) {
       throw new Error('Failed to fetch user config');
     }
@@ -664,6 +663,7 @@ export class OnboardingService {
           date:date
         }
       });
+      console.log("flask_data: " + response.data)
       return response.data;
     } catch (error) {
       throw new Error(`Failed to fetch data from Flask API: ${error.message}`);
