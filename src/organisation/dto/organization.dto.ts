@@ -1,23 +1,28 @@
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsString, IsUUID, IsNotEmpty } from 'class-validator';
 
-export class CreateOrganizationDto {
+export class CreateOrganizationDTO {
+  @IsString()
   @IsNotEmpty()
-  @IsString()
-  name: string;
+  name: string; // Organization name
 
-  @IsOptional()
   @IsString()
-  logo?: string;
-
   @IsNotEmpty()
-  @IsString()
-  country: string;
+  country: string; // Organization's country
 
-  @IsNotEmpty()
   @IsString()
-  type: string;
+  @IsNotEmpty()
+  timeZone: string; // Organization's time zone
 
-  @IsNotEmpty()
   @IsString()
-  teamSize: string;
+  @IsNotEmpty()
+  logo: string; // Organization's logo URL
+
+  @IsString()
+  @IsNotEmpty()
+  teamSize: string; // Team size (as string, change to int if needed)
+
+  @IsString()
+  @IsNotEmpty()
+  type: string; // Organization type
+
 }

@@ -8,14 +8,16 @@ import {
   Query,
   Req,
   Res,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
 import { OnboardingService } from './onboarding.service';
 import { Organization } from './organisation.entity';
 import { DesktopApplication } from './desktop.entity';
 import { Team } from './team.entity';
-import { CreateOrganizationDto } from './dto/organization.dto';
+import { CreateOrganizationDTO } from './dto/organization.dto';
 import { CreateDesktopApplicationDto } from './dto/desktop.dto';
-import { CreateTeamDto } from './dto/team.dto';
+import { CreateTeamDTO } from './dto/teams.dto';
 import { Request, Response, response } from 'express';
 import { AuthService } from 'src/users/auth.service';
 import { TrackTimeStatus, User } from 'src/users/user.entity';
@@ -25,6 +27,15 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { JwtService } from '@nestjs/jwt';
 import { organizationAdminService } from './OrganizationAdmin.service';
+import * as moment from 'moment';
+import { CalculatedLogic } from './calculatedLogic.entity';
+import { CreateCalculatedLogicDto } from './dto/calculatedLogic.dto';
+import { OrganizationDetails } from 'aws-sdk/clients/guardduty';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
+import { v4 as uuidv4 } from 'uuid';
+import { TrackingPolicyDTO } from './dto/tracingpolicy.dto';
 
 @Controller('onboarding')
 export class OnboardingController {
@@ -37,7 +48,7 @@ export class OnboardingController {
 
   @Post('organization/register')
   async createOrganization(
-    @Body() createOrganizationDto: CreateOrganizationDto,
+    @Body() createOrganizationDto: CreateOrganizationDTO,
     @Res() res,
     @Req() req,
   ): Promise<Organization> {
@@ -145,6 +156,44 @@ export class OnboardingController {
     }
   }
 
+  @Get('/organization/getAttendance')
+  async getAttendanceForUser(@Res() res: Response, @Req() req: Request, @Query('from') from: string, @Query('to') to: string) {
+    try {
+      const organizationAdminId = req.headers['organizationAdminId'];
+      const organizationAdminIdString = Array.isArray(organizationAdminId) ? organizationAdminId[0] : organizationAdminId;
+
+      console.log(organizationAdminId,organizationAdminIdString);
+
+      const OrganizationId = await this.organizationAdminService.findOrganizationById(organizationAdminIdString);
+      console.log(OrganizationId)
+      // const OrganizationId = "c9b8dad0-2028-4ef5-8332-31f47033da92";
+      
+      if (!OrganizationId) {
+        return res.status(404).json({ error: 'Organization not found !!' });
+      }
+
+      let fromDate: Date;
+      let toDate: Date;
+
+      if (from) {
+        fromDate = new Date(from);
+      } else {
+        fromDate = moment().subtract(7, 'days').toDate();
+      }
+
+      if (to) {
+        toDate = new Date(to);
+      } else {
+        toDate = new Date();
+      }
+
+      const attendanceData = await this.onboardingService.getWeeklyAttendance(OrganizationId, fromDate, toDate);
+      return res.status(200).json(attendanceData);
+    } catch (error) {
+      return res.status(500).json({ message: 'Failed to fetch devices', error: error?.message });
+    }
+  }
+
   @Post('desktop-application')
   async createDesktopApplication(
     @Body() createDesktopApplicationDto: CreateDesktopApplicationDto,
@@ -192,7 +241,7 @@ export class OnboardingController {
 
   @Post('organization/team')
   async createTeam(
-    @Body() createTeamDto: CreateTeamDto,
+    @Body() createTeamDto: CreateTeamDTO,
     @Req() req,
     @Res() res,
   ): Promise<any> {
@@ -850,6 +899,7 @@ export class OnboardingController {
             username,
           );
         deviceExist = checkDeviceId;
+        
       } else {
         console.log('checking without device-id', device_id);
         let checkMacAddres = await this.onboardingService.checkDeviceIdExist(
@@ -882,6 +932,8 @@ export class OnboardingController {
         deviceExist.toString(),
         organizationId,
       );
+
+      console.log("userConfig",userConfig);
       // Retrieve user config and track time status based on user ID
 
       // if (!userConfig) {
@@ -920,30 +972,229 @@ export class OnboardingController {
   }
 
   @Get('/hourly')
-async getHourlyProductivity(@Res() res: Response, @Req() req: Request): Promise<Response> {
-  try {
-    const organizationAdminId = req.headers['organizationAdminId'];
-    const organizationAdminIdString = Array.isArray(organizationAdminId)
-      ? organizationAdminId[0]
-      : organizationAdminId;
+  async getHourlyProductivity(@Res() res: Response, @Req() req: Request): Promise<Response> {
+    try {
+      const organizationAdminId = req.headers['organizationAdminId'];
+      const organizationAdminIdString = Array.isArray(organizationAdminId)
+        ? organizationAdminId[0]
+        : organizationAdminId;
 
-    const OrganizationId = await this.organizationAdminService.findOrganizationById(organizationAdminIdString);
+      const OrganizationId = await this.organizationAdminService.findOrganizationById(organizationAdminIdString);
 
-    if (!OrganizationId) {
-      return res.status(404).json({ error: 'Organization not found !!' });
+      if (!OrganizationId) {
+        return res.status(404).json({ error: 'Organization not found !!' });
+      }
+
+      const date = req.query.date as string;
+      const dateString = Array.isArray(date) ? date[0] : (date || new Date().toISOString().split('T')[0]);
+
+      const data = await this.onboardingService.getProductivityData(OrganizationId, dateString);
+      return res.status(200).json(data);
+    } catch (error) {
+      return res.status(500).json({
+        message: 'Failed to fetch productivity data',
+        error: error.message,
+      });
     }
-
-    const date = req.query.date as string;
-    const dateString = Array.isArray(date) ? date[0] : (date || new Date().toISOString().split('T')[0]);
-
-    const data = await this.onboardingService.getProductivityData(OrganizationId, dateString);
-    return res.status(200).json(data);
-  } catch (error) {
-    return res.status(500).json({
-      message: 'Failed to fetch productivity data',
-      error: error.message,
-    });
   }
-}
 
+  @Post("/organization/calculatedLogic")
+  async createCalculatedLogic(
+    @Res() res: Response,
+    @Req() req: Request,
+    @Body() body: CreateCalculatedLogicDto,
+  ): Promise<any> {
+    try {
+      const organizationAdminId = req.headers['organizationAdminId'];
+      const organizationAdminIdString = Array.isArray(organizationAdminId)
+        ? organizationAdminId[0]
+        : organizationAdminId;
+  
+      const organization = await this.organizationAdminService.findOrganizationById(organizationAdminIdString);
+  
+      if (!organization) {
+        return res.status(404).json({ error: 'Organization not found !!' });
+      }
+      console.log(organization);
+      const calculatedLogic = await this.onboardingService.createCalculatedLogic(body, organization);
+      
+      return res.status(201).json({calculatedLogic,message:"Caculated logic successfully created."});
+  
+    } catch (error) {
+      return res.status(500).json({
+        message: 'Failed to create Calculated Logic',
+        error: error?.message,
+      });
+    }
+  }
+
+  @Get("/api/getOrganizationDetial")
+  async getOrganizationDetail(@Res() res:Response,@Req() req:Request):Promise<Response> {
+    try {
+      const organizationAdminId = req.headers['organizationAdminId'];
+      const organizationAdminIdString = Array.isArray(organizationAdminId)
+        ? organizationAdminId[0]
+        : organizationAdminId;
+
+      const OrganizationId = await this.organizationAdminService.findOrganizationById(organizationAdminIdString);
+
+      if (!OrganizationId) {
+        return res.status(404).json({ error: 'Organization not found !!' });
+      }
+      const organization = await this.onboardingService.getOrganizationDetails(OrganizationId);
+      return res.status(200).json(organization);
+    } catch (error) {
+      return res.status(500).json({
+        message: 'Failed to fetch organization data',
+        error: error.message,
+      });
+    }
+  }
+
+
+  @Patch('/api/updateOrganizationSettings')
+  @UseInterceptors(
+    FileInterceptor('logo', {
+      storage: diskStorage({
+        destination: './images', // Directory to save the uploaded file
+        filename: (req, file, cb) => {
+          const uniqueSuffix = `${req.body.organizationId || 'unknown'}-${uuidv4()}${extname(file.originalname)}`;
+          cb(null, uniqueSuffix);
+        },
+      }),
+    }),
+  )
+  async updateOrganizationSettings(
+    @UploadedFile() logo: Express.Multer.File, 
+    @Body() body: any,
+    @Res() res: Response,
+    @Req() req: Request,
+  ): Promise<Response> {
+    try {
+      const organizationAdminId = req.headers['organizationAdminId'];
+      // console.log("organizationAdmin: " + organizationAdminId)
+      const organizationAdminIdString = Array.isArray(organizationAdminId)
+        ? organizationAdminId[0]
+        : organizationAdminId;
+
+      const organizationId = await this.organizationAdminService.findOrganizationById(organizationAdminIdString);
+      // console.log("organizationId: ", organizationId)
+      // console.log("organizationAdminId: ", organizationAdminId)
+      if (!organizationId) {
+        return res.status(404).json({ error: 'Organization not found !!' });
+      }
+
+      let updateData = { ...body };
+
+      if (logo) {
+        const logoPath = `/images/${logo.filename}`;
+        updateData.logo = logoPath; // Save the path of the logo in the database
+      }
+
+      const organization = await this.onboardingService.getOrganizationDetails(organizationId);
+      const updateOrganization = await this.onboardingService.updateOrganization(organization, updateData);
+
+      if (!updateOrganization) {
+        return res.status(304).json({ message: 'Not able to update organization data. Please try again.!😢' });
+      }
+
+      return res.status(200).json({ message: 'Organization updated successfully!!', organization: updateOrganization });
+    } catch (error) {
+      return res.status(500).json({
+        message: 'Failed to update organization data',
+        error: error.message,
+      });
+    }
+  }
+
+
+   // Route to create a new policy
+   @Post('policy/create')
+   async createPolicy(
+     @Body() createPolicyDto: TrackingPolicyDTO,
+     @Res() res,
+     @Req() req,
+   ) {
+     try {
+       const token = req?.headers['authorization'];
+       if (!token) {
+         return res.status(404).json({ error: 'Token is missing!' });
+       }
+ 
+       const validToken = await this.organizationAdminService.IsValidateToken(token.split(' ')[1]);
+       if (!validToken) {
+         return res.status(401).json({ error: 'Invalid User!' });
+       }
+ 
+       const newPolicy = await this.onboardingService.createPolicy(createPolicyDto);
+       return res.status(201).json({ message: 'Policy created successfully!', policy: newPolicy });
+     } catch (error) {
+       console.log(error);
+       return res.status(500).json({ message: 'Failed to create policy!', error: error?.message });
+     }
+   }
+ 
+   // Route to update a policy
+   @Patch('policy/update/:id')
+   async updatePolicy(
+     @Param('id') policyId: string,
+     @Body() updatePolicyDto: TrackingPolicyDTO,
+     @Res() res,
+     @Req() req,
+   ) {
+     try {
+       const token = req?.headers['authorization'];
+       if (!token) {
+         return res.status(404).json({ error: 'Token is missing!' });
+       }
+ 
+       const validToken = await this.organizationAdminService.IsValidateToken(token.split(' ')[1]);
+       if (!validToken) {
+         return res.status(401).json({ error: 'Invalid User!' });
+       }
+ 
+       const updatedPolicy = await this.onboardingService.updatePolicy(policyId, updatePolicyDto);
+       return res.status(200).json({ message: 'Policy updated successfully!', policy: updatedPolicy });
+     } catch (error) {
+       console.log(error);
+       return res.status(500).json({ message: 'Failed to update policy!', error: error?.message });
+     }
+   }
+ 
+   // Route to get all policies for an organization
+   @Get('organization/:organizationId/policies')
+   async getPoliciesForOrganization(
+     @Param('organizationId') organizationId: string,
+     @Res() res,
+     @Req() req,
+   ) {
+     try {
+       const token = req?.headers['authorization'];
+       if (!token) {
+         return res.status(404).json({ error: 'Token is missing!' });
+       }
+ 
+       const validToken = await this.organizationAdminService.IsValidateToken(token.split(' ')[1]);
+       if (!validToken) {
+         return res.status(401).json({ error: 'Invalid User!' });
+       }
+ 
+       const policies = await this.onboardingService.getPoliciesForOrganization(organizationId);
+       return res.status(200).json({ policies });
+     } catch (error) {
+       console.log(error);
+       return res.status(500).json({ message: 'Failed to fetch policies!', error: error?.message });
+     }
+   }
+ 
+   // Route to get a single policy by ID
+   @Get('policy/:id')
+   async getPolicyById(@Param('id') policyId: string, @Res() res) {
+     try {
+       const policy = await this.onboardingService.getPolicyById(policyId);
+       return res.status(200).json({ policy });
+     } catch (error) {
+       return res.status(500).json({ message: 'Failed to fetch policy!', error: error?.message });
+     }
+   }
 }

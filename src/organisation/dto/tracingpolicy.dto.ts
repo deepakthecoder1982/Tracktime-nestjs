@@ -1,15 +1,22 @@
-import { IsUUID, IsJSON, IsString } from 'class-validator';
+import { IsUUID, IsJSON, IsString, IsBoolean, IsInt, IsNotEmpty } from 'class-validator';
 
-export class trackingPolicyDTO {
-  @IsString()
-  organization_uid: string;
+export class TrackingPolicyDTO {
+  @IsUUID()
+  organizationId: string; // UUID of the organization creating the policy
 
   @IsString()
-  policy_name: string;
+  policyName: string; // Name of the policy
+
+  @IsInt()
+  screenshotInterval: number; // Interval for screenshots
+
+  // @IsBoolean()
+  // isDefault: boolean; // Boolean to indicate if it's the default policy
 
   @IsJSON()
-  policy_content: any;
+  policyContent: any; // JSON object containing additional policy configurations
 
   @IsUUID()
-  team_uuid: string;
+  teamId: string; // UUID of the team (if applicable)
+
 }

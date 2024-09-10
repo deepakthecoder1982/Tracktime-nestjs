@@ -33,10 +33,12 @@ export class organizationAdminService {
     }
   }
 
-  async createAdminOrganization(OrganizationAdmin: Partial<CreateOrganizationAdmin>): Promise<any> {
+  async createAdminOrganization(OrganizationAdmin: Partial<CreateOrganizationAdminDto>): Promise<any> {
+    console.log(OrganizationAdmin);
     try {
       let user = await this.organizationAdminRepository.create({
         ...OrganizationAdmin,
+        OrganizationId: OrganizationAdmin?.OrganizationId || null,
         isAdmin:false,
       });
       const errors = await validate(user);
@@ -90,11 +92,18 @@ export class organizationAdminService {
     // return validateToken;
   }
   async findOrganizationById(id:string):Promise<string> {
-    let organization = await this.organizationAdminRepository.findOne({where :{id}});
-    console.log(organization);
-    return organization?.OrganizationId;
+    console.log("id", id);
+    if(id){
+      let organization = await this.organizationAdminRepository.findOne({where :{id}});
+      console.log("organization",organization);
+      return organization?.OrganizationId;
+    }
+    return null;
   }
   async findUserAdminById(id:string):Promise<Boolean>{
+    if(!id){
+      return false;
+    }
     let userAdmin = await this.organizationAdminRepository.findOne({where :{id}})
     console.log(userAdmin)
     return userAdmin?.isAdmin;
