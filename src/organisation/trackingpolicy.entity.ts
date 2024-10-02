@@ -3,6 +3,8 @@ import { Entity, PrimaryGeneratedColumn, Column, ManyToMany, ManyToOne, JoinTabl
 import { Organization } from './organisation.entity';
 import { Team } from './team.entity';
 import { TrackingWeekdays } from './tracking_weekdays.entity';
+import { weekdays } from 'moment';
+import { TrackingHolidays } from './tracking_holidays.entity';
 
 @Entity('policies')
 export class Policy {
@@ -17,6 +19,9 @@ export class Policy {
 
   @ManyToOne(()=> TrackingWeekdays ,(w)=> w.trackedW_id)
   weekdays:TrackingWeekdays[];
+
+  @ManyToOne(()=> TrackingHolidays ,(w)=> w.trackedH_id)
+  holidays:TrackingHolidays[];
 
   // @Column({ default: false })
   // isDefault: boolean; // Flag to indicate if this is a default policy 
@@ -39,6 +44,15 @@ export class Policy {
 
   @ManyToOne(() => Organization, (organization) => organization.policy)
   organization: Organization; // The organization that owns the policy
+
+  // @OneToMany(()=> TrackingWeekdays, (weekdays)=>weekdays.policy )
+  // @JoinTable({
+  //   name: 'policy_weekdays', // Custom join table
+  //   joinColumn: { name: 'policy_id', referencedColumnName: 'policyId' },
+  //   inverseJoinColumn: { name: 'weekday_id', referencedColumnName: 'trackedW_id' }
+  // })
+  // weekdays : TrackingWeekdays[];
+
 
   @CreateDateColumn({name:"created_at"})
   created_at: Date;

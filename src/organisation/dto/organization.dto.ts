@@ -1,4 +1,4 @@
-import { IsString, IsUUID, IsNotEmpty } from 'class-validator';
+import { IsString, IsUUID, IsNotEmpty, IsOptional } from 'class-validator';
 
 export class CreateOrganizationDTO {
   @IsString()
@@ -14,7 +14,7 @@ export class CreateOrganizationDTO {
   timeZone: string; // Organization's time zone
 
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   logo: string; // Organization's logo URL
 
   @IsString()

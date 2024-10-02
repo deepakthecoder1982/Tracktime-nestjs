@@ -2,6 +2,10 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
+  HttpException,
+  HttpStatus,
+  Logger,
   Param,
   Patch,
   Post,
@@ -39,6 +43,7 @@ import { TrackingPolicyDTO } from './dto/tracingpolicy.dto';
 
 @Controller('onboarding')
 export class OnboardingController {
+  private readonly logger = new Logger(OnboardingController.name)
   constructor(
     private readonly onboardingService: OnboardingService,
     private readonly userService: AuthService,
@@ -247,11 +252,13 @@ export class OnboardingController {
   ): Promise<any> {
     try {
       const organizationAdminId = req.headers['organizationAdminId'];
-
+      
       const organizationId =
         await this.organizationAdminService.findOrganizationById(
           organizationAdminId,
         );
+
+        console.log(organizationId);
 
       console.log(
         'OrganizationId retrieved from organizationAdminService:',
@@ -866,108 +873,67 @@ export class OnboardingController {
   }
 
   @Post('users/configStatus')
-  async getConfig(@Req() req, @Res() res, @Body() Body): Promise<any> {
-    const device_id = req.headers['device-id'] || 'null'; // Extract device ID from headers
-    const organizationId = Body?.organizationId; // Extract organization ID from headers
-    const mac_address = Body?.mac_address;
-    const username = Body?.device_user_name;
-    console.log(device_id, username, mac_address, organizationId);
+  async getConfig(
+    @Headers('device-id') deviceId: string,
+    @Body('organizationId') organizationId: string,
+    @Body('mac_address') macAddress: string,
+    @Body('device_user_name') username: string,
+    @Res() res,
+  ): Promise<any> {
+    this.logger.debug(`Received request for device config: ${deviceId}, ${username}, ${macAddress}, ${organizationId}`);
+
+    // Validate required fields
+    if (!macAddress || !organizationId || !username) {
+      this.logger.warn('Validation failed: Missing required fields');
+      throw new HttpException('All fields are required', HttpStatus.BAD_REQUEST);
+    }
 
     try {
-      if (!mac_address || !organizationId || !username) {
-        return res.status(404).json({ message: 'All fields are required' });
+      // Step 1: Validate Organization
+      const organizationExists = await this.onboardingService.validateOrganization(organizationId);
+      if (!organizationExists) {
+        this.logger.warn(`Organization with ID ${organizationId} does not exist.`);
+        throw new HttpException('Organization with provided ID does not exist', HttpStatus.NOT_FOUND);
       }
 
-      const isExistorganization =
-        await this.onboardingService.validateOrganization(organizationId);
+      // Step 2: Check if Device Exists
+      const deviceExist = deviceId
+        ? await this.onboardingService.checkDeviceIdExistWithDeviceId(macAddress, deviceId, username)
+        : await this.onboardingService.checkDeviceIdExist(macAddress, username);
 
-      console.log('isExistorganization', isExistorganization);
-      if (!isExistorganization) {
-        return res
-          .status(401)
-          .json({ message: "Organization with Id doesn't exist" });
-      }
-      // let userExist = await this.onboardingService.findUserByEmail(email);
-      let deviceExist = null;
-      console.log('device_id_in_here', device_id);
-      if (device_id !== 'null') {
-        console.log('checking with device-id', device_id);
-        let checkDeviceId =
-          await this.onboardingService.checkDeviceIdExistWithDeviceId(
-            mac_address,
-            device_id,
-            username,
-          );
-        deviceExist = checkDeviceId;
-        
-      } else {
-        console.log('checking without device-id', device_id);
-        let checkMacAddres = await this.onboardingService.checkDeviceIdExist(
-          mac_address,
-          username,
-        );
-        console.log('checkMacAddres', checkMacAddres);
+      let deviceIdOrNew: string = deviceExist;
+      this.logger.log(`Device existence check complete. Result: ${deviceExist}`);
 
-        deviceExist = checkMacAddres;
-      }
-      // creating device for users here
-      console.log('deviceExist', deviceExist);
-
-      const user_uuid = '';
-      const email = '';
+      // Step 3: Create New Device if Not Exists
       if (!deviceExist) {
-        let createNewUser = await this.onboardingService.createDeviceForUser(
-          organizationId,
-          username,
-          email,
-          user_uuid,
-          mac_address,
-        );
-        deviceExist = await createNewUser;
+        this.logger.log(`Creating new device for user: ${username}`);
+        deviceIdOrNew = await this.onboardingService.createDeviceForUser(organizationId, username, '', '', macAddress);
       }
 
-      console.log('device-id', deviceExist);
+      // Step 4: Retrieve User Config
+      const userConfig = await this.onboardingService.getUserConfig(deviceIdOrNew, organizationId);
+      if (!userConfig) {
+        this.logger.warn('User configuration not found');
+        return res.status(404).json({ message: 'User configuration not found' });
+      }
+      
+      // step 5: getting Paid status for the organization.
+      const isPaidStatus = await this.onboardingService.finalResponseData(userConfig,deviceIdOrNew,organizationId)
 
-      let userConfig = await this.onboardingService.getUserConfig(
-        deviceExist.toString(),
-        organizationId,
-      );
-
-      console.log("userConfig",userConfig);
-      // Retrieve user config and track time status based on user ID
-
-      // if (!userConfig) {
-      //   const createdDeviceId =
-      //     await this.onboardingService.createDeviceIdForUser(
-      //       mac_address,
-      //       username,
-      //       organizationId,
-      //     );
-      // }
-      // if (!userConfig) {
-      //   return res.status(404).json({ message: 'User not found' });
-      // }
-
-      // const isPaidUser = await this.userService.isUserPaid(userId);
-      // // Construct response with user's config and track time status
-      // const response = {
-      //   config: {
-      //     trackTimeStatus: userConfig.trackTimeStatus,
-      //     isPaid: !isPaidUser,
-      //     // Other user-specific config details here
-      //   },
-      // };
-      console.log(deviceExist, 'deviceExist', userConfig, 'userConfig');
-      return res
-        .status(202)
-        .json({ config: userConfig, device_id: deviceExist });
+      const finalData = {
+        device_id:deviceIdOrNew,
+        config:{
+          "trackTimeStatus":userConfig?.config?.trackTimeStatus,
+          isPaid:isPaidStatus,
+        }
+      }
+      console.log("userConfigStatus: " , userConfig)
+      this.logger.log(`FinalData ${JSON.stringify(finalData)}`)
+      console.log("userIdInNew",deviceIdOrNew)
+      return res.status(200).json(finalData);
     } catch (error) {
-      return res
-        .status(500)
-        .json({
-          message: 'Failed to fetch user config',
-          error: error?.message,
-        });
+      this.logger.error(`Failed to fetch user config: ${error.message}`, error.stack);
+      return res.status(500).json({ message: 'Failed to fetch user config', error: error.message });
     }
   }
 
@@ -1116,18 +1082,23 @@ export class OnboardingController {
      @Req() req,
    ) {
      try {
-       const token = req?.headers['authorization'];
-       if (!token) {
-         return res.status(404).json({ error: 'Token is missing!' });
-       }
- 
-       const validToken = await this.organizationAdminService.IsValidateToken(token.split(' ')[1]);
-       if (!validToken) {
-         return res.status(401).json({ error: 'Invalid User!' });
-       }
- 
+      const organizationAdminId = req.headers['organizationAdminId'];
+      const organizationAdminIdString = Array.isArray(organizationAdminId)
+        ? organizationAdminId[0]
+        : organizationAdminId;
+  
+      const organization = await this.organizationAdminService.findOrganizationById(organizationAdminIdString);
+  
+      if (!organization) {
+        return res.status(404).json({ error: 'Organization not found !!' });
+      }
+      console.log(organization);
+
+      createPolicyDto["organizationId"] = organization;
+
        const newPolicy = await this.onboardingService.createPolicy(createPolicyDto);
        return res.status(201).json({ message: 'Policy created successfully!', policy: newPolicy });
+
      } catch (error) {
        console.log(error);
        return res.status(500).json({ message: 'Failed to create policy!', error: error?.message });
