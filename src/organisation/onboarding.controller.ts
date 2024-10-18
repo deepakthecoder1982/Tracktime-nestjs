@@ -1133,24 +1133,29 @@ export class OnboardingController {
    }
  
    // Route to get all policies for an organization
-   @Get('organization/:organizationId/policies')
+   @Get('organization/policies')
    async getPoliciesForOrganization(
-     @Param('organizationId') organizationId: string,
+    //  @Param('organizationId') organizationId: string,
      @Res() res,
      @Req() req,
    ) {
      try {
-       const token = req?.headers['authorization'];
-       if (!token) {
-         return res.status(404).json({ error: 'Token is missing!' });
-       }
- 
-       const validToken = await this.organizationAdminService.IsValidateToken(token.split(' ')[1]);
-       if (!validToken) {
-         return res.status(401).json({ error: 'Invalid User!' });
-       }
- 
-       const policies = await this.onboardingService.getPoliciesForOrganization(organizationId);
+      const organizationAdminId = req.headers['organizationAdminId'];
+      const organizationAdminIdString = Array.isArray(organizationAdminId)
+        ? organizationAdminId[0]
+        : organizationAdminId;
+  
+      const organization = await this.organizationAdminService.findOrganizationById(organizationAdminIdString);
+  
+      if (!organization) {
+        return res.status(404).json({ error: 'Organization not found !!' });
+      }
+      console.log("organization on policy page",organization);
+       const policies = await this.onboardingService.getPoliciesForOrganization(organization);
+
+       const getOtherDetailsForPolicy = await this.onboardingService.getDetailsForPolicy(policies);
+       
+       console.log("Policies",policies)
        return res.status(200).json({ policies });
      } catch (error) {
        console.log(error);

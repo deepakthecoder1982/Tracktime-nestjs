@@ -1,5 +1,5 @@
-import { Column, CreateDateColumn, Entity, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
-import { Policy } from "./trackingpolicy.entity";
+import { Column, CreateDateColumn, Entity, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn, JoinColumn } from 'typeorm';
+import { Policy } from './trackingpolicy.entity';
 
 @Entity('tracking_weekdays')
 export class TrackingWeekdays {
@@ -27,10 +27,10 @@ export class TrackingWeekdays {
   @Column('int')
   break_end: number;
 
-  @ManyToOne(() => Policy, (policy) => policy.policyId)
+  @ManyToOne(() => Policy, (policy) => policy.weekdays, { cascade: true, onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'policyId' }) // Specify the custom column name for policy relationship
   policy: Policy;
 
-  // Specify custom column names
   @CreateDateColumn({ name: 'created_at' })
   created_at: Date;
 
