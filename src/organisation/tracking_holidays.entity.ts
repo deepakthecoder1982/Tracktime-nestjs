@@ -15,7 +15,7 @@ export class TrackingHolidays {
   @Column({ default: true })
   day_status: boolean;
 
-  @ManyToOne(() => Policy, (policy) => policy.holidays, { cascade: true, onDelete: 'CASCADE' })
+  @ManyToOne(() => Policy, (policy) => policy.holidays)
   @JoinColumn({ name: 'policyId' }) // Specify the custom column name for policy relationship
   policy: Policy;
 

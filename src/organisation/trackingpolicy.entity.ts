@@ -1,10 +1,21 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToMany, ManyToOne, JoinTable, OneToMany, CreateDateColumn, UpdateDateColumn, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  ManyToMany,
+  OneToMany,
+  JoinTable,
+  CreateDateColumn,
+  UpdateDateColumn,
+  JoinColumn,
+} from 'typeorm';
 import { Organization } from './organisation.entity';
-import { Team } from './team.entity';
 import { TrackingWeekdays } from './tracking_weekdays.entity';
 import { TrackingHolidays } from './tracking_holidays.entity';
-import { User } from 'src/users/user.entity';
 import { ScreenshotSettings } from './screenshot_settings.entity';
+import { PolicyTeams } from './policy_team.entity';
+import { PolicyUsers } from './policy_user.entity';
 
 @Entity('policies')
 export class Policy {
@@ -16,35 +27,27 @@ export class Policy {
 
   @Column('int')
   screenshotInterval: number;
-  
-  @OneToMany(()=> ScreenshotSettings, (screenshotSett)=>screenshotSett.policy)
-  ScreenshotSettings:ScreenshotSettings; 
 
-  @OneToMany(() => TrackingWeekdays, (weekdays) => weekdays.policy)
-  weekdays: TrackingWeekdays[]; // Use `OneToMany` relationship for multiple weekdays
+  @OneToMany(() => ScreenshotSettings, (screenshotSett) => screenshotSett.policy, { cascade: true, onDelete: 'CASCADE' })
+  ScreenshotSettings: ScreenshotSettings;
 
-  @OneToMany(() => TrackingHolidays, (holidays) => holidays.policy)
-  holidays: TrackingHolidays[]; // Use `OneToMany` relationship for multiple holidays
+  @OneToMany(() => TrackingWeekdays, (weekdays) => weekdays.policy, { cascade: true, onDelete: 'CASCADE' })
+  weekdays: TrackingWeekdays[];
+
+  @OneToMany(() => TrackingHolidays, (holidays) => holidays.policy, { cascade: true, onDelete: 'CASCADE' })
+  holidays: TrackingHolidays[];
 
   @ManyToOne(() => Organization, (organization) => organization.policy, { cascade: true, eager: true })
-  @JoinColumn({ name: 'organizationId' }) // Explicitly define the join column name
+  @JoinColumn({ name: 'organizationId' })
   organization: Organization;
 
-  @ManyToMany(() => Team, (team) => team.policies)
-  @JoinTable({
-    name: 'policy_teams',
-    joinColumn: { name: 'policy_id', referencedColumnName: 'policyId' },
-    inverseJoinColumn: { name: 'team_id', referencedColumnName: 'id' }
-  })
-  assignedTeams: Team[];
+  // One-to-Many with PolicyTeams (each policy can have multiple associated teams)
+  @OneToMany(() => PolicyTeams, (policyTeams) => policyTeams.policy, { cascade: true, onDelete: 'CASCADE' })
+  assignedTeams: PolicyTeams[];
 
-  @ManyToMany(() => User, (user) => user.policies)
-  @JoinTable({
-    name: 'policy_users',
-    joinColumn: { name: 'policy_id', referencedColumnName: 'policyId' },
-    inverseJoinColumn: { name: 'user_id', referencedColumnName: 'userUUID' }
-  })
-  assignedUsers: User[];
+  // One-to-Many with PolicyUsers (each policy can have multiple associated users)
+  @OneToMany(() => PolicyUsers, (policyUsers) => policyUsers.policy, { cascade: true, onDelete: 'CASCADE' })
+  assignedUsers: PolicyUsers[];
 
   @CreateDateColumn({ name: 'created_at' })
   created_at: Date;
