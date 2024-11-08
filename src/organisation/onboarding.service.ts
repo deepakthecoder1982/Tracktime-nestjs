@@ -1163,6 +1163,7 @@ export class OnboardingService {
         // Get team and user  count for each policy
         const team = await this.PolicyTeamRepository.find({
           where: { policy: { policyId: pol?.policyId } },
+          relations:["team"]
         });
         const user = await this.PolicyUserRepository.find({
           where: { policy: { policyId: pol?.policyId } },
@@ -1294,15 +1295,24 @@ export class OnboardingService {
   console.log("Policy_id",policyId);
   const policy = await this.policyRepository.findOne({
     where: { policyId },
+    relations: [
+      'assignedTeams',          // Loads PolicyTeams entities
+      'assignedTeams.team',     // Loads Team data within each PolicyTeam
+      'assignedUsers',          // Loads PolicyUsers entities
+      'assignedUsers.user'      // Loads User data within each PolicyUser
+    ],
   });
+  console.log("Policy",policy);
 
-  let policyTeam = await this.PolicyTeamRepository.find({where:{policy:{policyId:policy?.policyId}}});
-  const user = await this.PolicyUserRepository.find({where:{policy:{policyId:policy?.policyId}}});
+  // let policyTeam = await this.PolicyTeamRepository.find({
+  //   where:{policy:{policyId:policy?.policyId},
+  // }});
+  // const user = await this.PolicyUserRepository.find({where:{policy:{policyId:policy?.policyId}}});
    
   // policy["assignedUsers"] = user;
-  console.log(user)
-  policy["assignedUsers"] = user;
-  policy["assignedTeams"] = policyTeam;
+  // console.log(user)
+  // policy["assignedUsers"] = user;
+  // policy["assignedTeams"] = policyTeam;
   return policy;
  }
   async finalResponseData(
@@ -1401,19 +1411,30 @@ export class OnboardingService {
       throw new NotFoundException(`User doesn't exist for  policy ${policyId}.`);
     }
     
-    const teamInPolicyExist = await this.PolicyTeamRepository.findOne({where:{team:{id:isteamExist?.id}}});
-    if(!teamInPolicyExist){
+    const teamInPolicyExist = await this.PolicyTeamRepository.findOne({where:{team:{id:isteamExist?.id}},
+    relations:["team"]
+    });
+    console.log("teamInPolicyExist",teamInPolicyExist);
+    
+    if(teamInPolicyExist && teamInPolicyExist?.team){
       return isPolicyExist;
     }
+    
     const team = this.PolicyTeamRepository.create({
       policy:{policyId:isPolicyExist?.policyId},
       team:{id:isteamExist?.id}
     })
 
     await this.PolicyTeamRepository.save(team);
+    
+    const userInPolicyiExist = await this.PolicyUserRepository.findOne({where:{user:{userUUID:isUserExist?.userUUID}},
+    relations:["user"]
+    });
+    
+    console.log("userInPolicyiExist",userInPolicyiExist);
 
-    const userInPolicyiExist = await this.PolicyUserRepository.findOne({where:{user:{userUUID:isUserExist?.userUUID}}});
-    if(!userInPolicyiExist){
+    
+    if(userInPolicyiExist && userInPolicyiExist?.user){
       return isPolicyExist;
     }
     const user = this.PolicyUserRepository.create({
@@ -1424,7 +1445,32 @@ export class OnboardingService {
     await this.PolicyUserRepository.save(user);
     return isPolicyExist;
   }
+  async updateScreenShotSettings(
+    policyId:string,
+    screenshot_id:string,
+    blurScreenshotsStatus :boolean,
+    time_interval:number,
+    screenshot_monitoring:boolean
+  ):Promise<ScreenshotSettings>{
+    const policy = await this.policyRepository.findOne({where:{policyId:policyId},
+    relations:[
+      "ScreenshotSettings",
+    ]});
+    if(!policy?.policyId){
+      throw new NotFoundException(`Policy with ID ${policyId} not found.`);
+    }
+    const screenshotSeetings = await this.ScreenshotSetRepository.findOne({where:{policy:{policyId:policy?.policyId},screenshot_id},relations:["policy"]});
+    // let newScreenshotSetings = await  
+    screenshotSeetings.blurScreenshotsStatus = blurScreenshotsStatus,
+    screenshotSeetings.time_interval = time_interval,
+    screenshotSeetings.monitoringStatus = screenshot_monitoring,
+     
+    await this.ScreenshotSetRepository.save(screenshotSeetings);
+    
+    console.log(screenshotSeetings);
 
+    return screenshotSeetings;
+  }
   async deletePolicy(policyId: string) {
     // Step 1: Find the policy to ensure it exists
     const policy = await this.policyRepository.findOne({ where: { policyId } });
@@ -1451,4 +1497,66 @@ export class OnboardingService {
     // Step 3: Finally delete the policy itself
     await this.policyRepository.delete({ policyId });
   }
+
+  async findTimeForPaidUsers(deviceId: string): Promise<number> {
+    // Find the user associated with the device
+    const userDevice = await this.devicesRepository.findOne({
+      where: { device_uid: deviceId }
+    });
+
+    if (!userDevice) {
+      // If no user is found, return the default interval (e.g., 2)
+      return 2;
+    }
+
+    // Find the PolicyUser relation that includes the policy
+    const policyUser = await this.PolicyUserRepository.findOne({
+      where: { user: { userUUID: userDevice?.user_uid } },
+      relations: ['policy'], // Load the policy relation
+    });
+
+    if (!policyUser || !policyUser.policy) {
+      // If no policy is found, return the default interval (e.g., 2)
+      return 2;
+    }
+
+    // Fetch the policy details, specifically the screenshot interval
+    const screenshotInterval = await this.ScreenshotSetRepository.findOne({
+      where: { policy: { policyId: policyUser?.policy?.policyId } },
+    });
+
+    // Return the screenshot interval if found; otherwise, default to 2
+    return screenshotInterval?.time_interval || 2;
+  }
+  async findBlurScreenshotStatus(deviceId: string): Promise<boolean>{
+    const userDevice = await this.devicesRepository.findOne({
+      where: { device_uid: deviceId }
+    });
+    console.log("device",userDevice)
+    if (!userDevice) {
+      // If no user is found, return the default interval (e.g., 2)
+      return false;
+    }
+
+    // Find the PolicyUser relation that includes the policy
+    const policyUser = await this.PolicyUserRepository.findOne({
+      where: { user: { userUUID: userDevice?.user_uid } },
+      relations: ['policy'], // Load the policy relation
+    });
+    console.log("policyUser",policyUser)
+
+    if (!policyUser || !policyUser.policy) {
+      // If no policy is found, return the default interval (e.g., 2)
+      return false;
+    }
+
+    // Fetch the policy details, specifically the screenshot interval
+    const screenshotInterval = await this.ScreenshotSetRepository.findOne({
+      where: { policy: { policyId: policyUser?.policy?.policyId } },
+    });
+    console.log("Screenshot",screenshotInterval)
+
+    return screenshotInterval?.blurScreenshotsStatus || false;
+  }
+
 }

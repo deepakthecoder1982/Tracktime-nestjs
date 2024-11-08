@@ -893,7 +893,7 @@ export class OnboardingController {
     try {
       // Step 1: Validate Organization
       const organizationExists = await this.onboardingService.validateOrganization(organizationId);
-      if (!organizationExists) {
+      if (!organizationExists) { 
         this.logger.warn(`Organization with ID ${organizationId} does not exist.`);
         throw new HttpException('Organization with provided ID does not exist', HttpStatus.NOT_FOUND);
       }
@@ -921,9 +921,13 @@ export class OnboardingController {
       
       // step 5: getting Paid status for the organization.
       const isPaidStatus = await this.onboardingService.finalResponseData(userConfig,deviceIdOrNew,organizationId)
+      const timeForUnPaidUsers = await this.onboardingService.findTimeForPaidUsers(deviceIdOrNew)
+      const blurStatus = await this.onboardingService.findBlurScreenshotStatus(deviceIdOrNew);
 
       const finalData = {
         device_id:deviceIdOrNew,
+        timeForUnpaidUser:timeForUnPaidUsers || 2,
+        blurstatus:blurStatus || false,
         config:{
           "trackTimeStatus":userConfig?.config?.trackTimeStatus,
           isPaid:isPaidStatus,
@@ -1255,16 +1259,29 @@ export class OnboardingController {
     
      try {
       console.log("Id",policyId)
-      const {polciyId,teamId,userId} = body;
+      const {teamId,userId} = body;
+      console.log(teamId,userId,body); 
 
-       const policy = await this.onboardingService.updatePolicyUserAndTeam(polciyId,teamId,userId);
-      
-       
+       const policy = await this.onboardingService.updatePolicyUserAndTeam(policyId,teamId,userId);
        
        return res.status(200).json({ policy });
      } catch (error) {
        return res.status(500).json({ message: 'Failed to fetch policy!', error: error?.message });
      }
    }
+
+   @Patch('policy/screenShotSettingsUpdate/:id')
+   async updateScreenshot(@Param('id') policyId: string, @Res() res, @Body() body) {
+    
+     try {
+      console.log("Id",policyId)
+      const {blurScreenshotsStatus,time_interval,screenshot_monitoring,screenshot_id} = body;
+       const screenshotSettings = await this.onboardingService.updateScreenShotSettings(policyId,screenshot_id,blurScreenshotsStatus,time_interval,screenshot_monitoring);
+       return res.status(200).json({ screenshotSettings });
+     } catch (error) {
+       return res.status(500).json({ message: 'Failed to update screenshot!', error: error?.message });
+     }
+   }
+   
 
 }
