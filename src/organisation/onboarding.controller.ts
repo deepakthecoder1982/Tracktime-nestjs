@@ -62,16 +62,20 @@ export class OnboardingController {
     let token = req?.headers['authorization'];
     token = token?.split(' ')[1];
     try {
-      if (!token) {
-        return res.status(404).json({ Error: 'Token is missing!!' });
-      }
+      // if (!token) {
+      //   return res.status(404).json({ Error: 'Token is missing!!' });
+      // }
 
-      let isValidToken =
-        await this.organizationAdminService.IsValidateToken(token);
+      // let isValidToken =
+      //   await this.organizationAdminService.IsValidateToken(token);
 
-      if (!isValidToken) {
-        return res.status(401).json({ Error: 'Invalid User!!' });
-      }
+      // if (!isValidToken) {
+      //   return res.status(401).json({ Error: 'Invalid User!!' });
+      // }
+      const organizationAdminId = req.headers['organizationAdminId'];
+      const organizationAdminIdString = Array.isArray(organizationAdminId)
+        ? organizationAdminId[0]
+        : organizationAdminId;
 
       let organizationExist = await this.onboardingService.findOrganization(
         createOrganizationDto?.name?.toLowerCase(),
@@ -79,7 +83,7 @@ export class OnboardingController {
 
       if (organizationExist) {
         await this.organizationAdminService.updateUserOrganizationId(
-          isValidToken?.id,
+          organizationAdminIdString,
           organizationExist?.id,
         );
         return res
@@ -89,10 +93,13 @@ export class OnboardingController {
       let newOrganization = await this.onboardingService.createOrganization(
         createOrganizationDto,
       );
+
+      await this.onboardingService.createCalculatedLogicForNewOrganization(newOrganization.id);
       await this.organizationAdminService.updateUserOrganizationId(
-        isValidToken?.id,
+        organizationAdminIdString,
         newOrganization?.id,
       );
+      
       return res
         .status(201)
         .json({
@@ -979,15 +986,16 @@ export class OnboardingController {
   
       // Retrieve organization details
       const organization = await this.organizationAdminService.findOrganizationById(organizationAdminIdString);
-      
+  
       if (!organization) {
         return res.status(404).json({ error: 'Organization not found !!' });
       }
   
       const { filetype } = req.query;
       const pkgFolderPath = path.join('D:', 'practise', 'SortWindDirectoryAndWork', 'NestJSCrud', 'tracktime-authentication', 'src', 'organisation', 'Installer', 'pkg');
+      const installerFolderPath = path.join(pkgFolderPath, '..'); // Parent directory of `pkg`
       const configFilePath = path.join(pkgFolderPath, 'dev_config.txt');
-      
+  
       const key = 'an example very very secret key.';
       const iv = Buffer.alloc(16, 0);
   
@@ -1002,29 +1010,32 @@ export class OnboardingController {
   
       fs.writeFileSync(configFilePath, updatedConfig);
       console.log('Config file updated successfully');
-      
-      const outputZipPath = path.join(pkgFolderPath, `${organization}_package.zip`);
+  
+      const outputZipPath = path.join(installerFolderPath, `${organization}_package.zip`);
       const output = fs.createWriteStream(outputZipPath);
       const archive = archiver('zip', { zlib: { level: 9 } });
   
-      output.on('close', () => {
+      output.on('close', async () => {
         console.log(`${archive.pointer()} total bytes`);
         console.log('Archiver has been finalized and the output file descriptor has closed.');
   
-        // Send the zip file directly and include the file name in the response body
+        // Send the zip file
         res.set({
           'Content-Disposition': `attachment; filename="${organization}_package.zip"`,
           'Content-Type': 'application/zip',
         });
-        res.status(HttpStatus.OK).sendFile(outputZipPath, {
-          headers: {
-            'Content-Disposition': `attachment; filename="${organization}_package.zip"`,
-          },
-          onFinish: () => {
-            // Send the filename as part of the response for frontend to use
-            res.json({
-              fileName: `${organization}_package`  // You can send any custom filename here
-            });
+        res.status(HttpStatus.OK).sendFile(outputZipPath, {}, async (err) => {
+          if (err) {
+            console.error('Error sending file:', err);
+          } else {
+            console.log('File sent successfully.');
+            // Delete the zip file after sending
+            try {
+              fs.unlinkSync(outputZipPath);
+              console.log('Zip file deleted successfully.');
+            } catch (unlinkError) {
+              console.error('Error deleting zip file:', unlinkError);
+            }
           }
         });
       });
@@ -1033,18 +1044,22 @@ export class OnboardingController {
         throw new HttpException('Error zipping the files', HttpStatus.INTERNAL_SERVER_ERROR);
       });
   
+      // Exclude existing zip files and add only files inside `pkg` directory
+      archive.glob('**/*', {
+        cwd: pkgFolderPath,
+        ignore: ['*.zip'], // Exclude zip files
+      });
       archive.pipe(output);
-      archive.directory(pkgFolderPath, false);
       archive.finalize();
-      
     } catch (error) {
       console.error('Error:', error);
       return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
         message: 'Failed to download the application!',
         error: error.message,
-      });
+      }); 
     }
   }
+  
   
   
 

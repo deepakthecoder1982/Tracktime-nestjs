@@ -34,6 +34,7 @@ import { ScreenshotSettings } from './screenshot_settings.entity';
 import { TrackingHolidays } from './tracking_holidays.entity';
 import { TrackingWeekdays } from './tracking_weekdays.entity';
 import { ConfigurationServicePlaceholders } from 'aws-sdk/lib/config_service_placeholders';
+import { organizationAdminService } from './OrganizationAdmin.service';
 
 export const holidayList = [
   // Indian Holidays
@@ -174,6 +175,7 @@ export class OnboardingService {
     private TrackWeedaysRepository: Repository<TrackingWeekdays>,
     @InjectRepository(CalculatedLogic)
     private calculatedLogicRepository: Repository<CalculatedLogic>,
+    private readonly organizationAdminService: organizationAdminService,
   ) {
     this.s3 = new S3({
       endpoint: this.ConfigureService.get<string>('WASABI_ENDPOINT'),
@@ -194,6 +196,23 @@ export class OnboardingService {
       return organization;
     }
     return null;
+  }
+
+  async createCalculatedLogicForNewOrganization(organizationId:string):Promise<boolean>{
+    if(!organizationId){
+      return false;
+    }
+    const calculatedLogic = this.calculatedLogicRepository.create({
+      organization_id: organizationId,
+      full_day_active_time: 8,
+      full_day_core_productive_time: 4,
+      half_day_active_time: 4,
+      half_day_core_productive_time: 2,
+    });
+    await this.calculatedLogicRepository.save(calculatedLogic);
+
+    return true;
+
   }
   async getDeskTopName(organization:string):Promise<string> {
     const appName = await this.desktopAppRepository.findOne({where:{organizationId:organization}});
@@ -298,6 +317,11 @@ export class OnboardingService {
     let isOrganization = await this.organizationRepository.findOne({
       where: { name },
     });
+    // if(isOrganization) {
+    //   // isOrganization = await this.organizationAdminService.findOrganization(isOrganization.id)
+    //   // return isOrganization.id;
+    // }
+
 
     return isOrganization;
   }
@@ -580,6 +604,7 @@ export class OnboardingService {
       user_uid: user_uid ? user_uid : null,
       mac_address: mac_address ? mac_address : null,
       device_name: deviceName,
+      config:{trackTimeStatus:TrackTimeStatus.Resume},
     });
 
     // Save the new device to the database
@@ -702,16 +727,18 @@ export class OnboardingService {
 
       // Fetch the user config from the database
       let userConfig = await this.devicesRepository.findOne({
-        where: { device_uid: deviceId, organization_uid: organizationId },
+        where: { device_uid: deviceId}
       });
-
+      this.logger.log(
+        `device_config: ${userConfig}`
+      )
       if (!userConfig) {
         this.logger.warn(
           `User config not found for device ${deviceId} and organization ${organizationId}`,
         );
-        throw new Error(
-          `User config not found for device ${deviceId} and organization ${organizationId}`,
-        );
+        // throw new Error(
+        //   `User config not found for device ${deviceId} and organization ${organizationId}`,
+        // );
       }
 
       // Check if the config is null and update it with default value if necessary
