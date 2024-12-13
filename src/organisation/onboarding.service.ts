@@ -133,7 +133,7 @@ const weekdayData = [
 // You can then save this `weekdayData` into the database using your existing repository methods.
 
 const DeployFlaskBaseApi =
-  'https://python-link-classification-1-ls93.onrender.com';
+  'https://python-link-classification-u2xx.onrender.com';
 
 const LocalFlaskBaseApi = 'http://127.0.0.1:5000';
 type UpdateConfigType = DeepPartial<User['config']>;
@@ -167,7 +167,7 @@ export class OnboardingService {
     private PolicyUserRepository: Repository<PolicyUsers>,
     @InjectRepository(PolicyTeams)
     private PolicyTeamRepository: Repository<PolicyTeams>,
-    @InjectRepository(ScreenshotSettings)
+    @InjectRepository(ScreenshotSettings) 
     private ScreenshotSetRepository: Repository<ScreenshotSettings>,
     @InjectRepository(TrackingHolidays)
     private TrackHolidaysRepository: Repository<TrackingHolidays>,
@@ -214,6 +214,56 @@ export class OnboardingService {
     return true;
 
   }
+
+
+  async getLastestActivity(organid: string): Promise<{ [key: string]: string }> {
+    try {
+      // Fetch all user activities for the organization
+      const userActivities = await this.userActivityRepository.find({
+        where: { organization_id: organid },
+      });
+
+      // Map latest activity for each user
+      const userLatestActivities = userActivities.reduce((acc, activity) => {
+        const userId = activity.user_uid;
+        const activityTimestamp = new Date(activity.timestamp).getTime();
+
+        // Only update if no entry exists or the current activity is newer
+        if (!acc[userId] || new Date(acc[userId].timestamp).getTime() < activityTimestamp) {
+          acc[userId] = activity;
+        }
+
+        return acc;
+      }, {} as { [key: string]: UserActivity });
+
+      // Map to userId -> lastActive (human-readable time difference)
+      const now = Date.now();
+      const result = Object.keys(userLatestActivities).reduce((acc, userId) => {
+        const lastActivityTime = new Date(userLatestActivities[userId].timestamp).getTime();
+        acc[userId] = this.getTimeAgo(now - lastActivityTime); // Human-readable time
+        return acc;
+      }, {} as { [key: string]: string });
+
+      console.log('User Latest Activity:', result);
+      return result;
+    } catch (error) {
+      console.error('Error fetching latest activity:', error);
+      throw new Error('Failed to fetch latest activity');
+    }
+  }
+
+  private getTimeAgo(diffInMs: number): string {
+    const seconds = Math.floor(diffInMs / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    if (days > 0) return `${days} day${days > 1 ? 's' : ''} ago`;
+    if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    if (minutes > 0) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+    return `${seconds} second${seconds > 1 ? 's' : ''} ago`;
+  }
+
   async getDeskTopName(organization:string):Promise<string> {
     const appName = await this.desktopAppRepository.findOne({where:{organizationId:organization}});
     console.log(appName);
@@ -407,14 +457,14 @@ export class OnboardingService {
       where: { organization_id: organId },
     });
 
-    console.log('devices: ' + devices);
+    console.log('devices: ' , devices.length);
     if (!devices?.length) {
       return null;
     }
-    console.log('devicesInfo: ' + deviceInfo);
+    console.log('devicesInfo: ' + deviceInfo.length);
 
     devices = devices.map((item) => {
-      console.log('device: ' + item);
+      // console.log('device: ' + item);
       deviceInfo.map((itemInfo) => {
         // console.log("status",itemInfo?.user_uid === item?.device_uid)
         if (itemInfo?.user_uid === item?.device_uid) {
@@ -549,7 +599,7 @@ export class OnboardingService {
     const userData = await this.userActivityRepository.find({
       where: { organization_id: organId },
     });
-    console.log(userData);
+    // console.log("userData",userData);
     return userData;
   }
 
@@ -1365,6 +1415,15 @@ export class OnboardingService {
   // policy["assignedUsers"] = user;
   // policy["assignedTeams"] = policyTeam;
   return policy;
+ }
+
+ async getUserPolicyData(organId:string,userId:string):Promise<Policy[]>{
+  // let policy = await this.policyRepository.find({where:{organization:{id:organId}}});
+  console.log(organId,userId);
+  let policyUsersList = await this.policyRepository.find({where:{organization:{id:organId}},relations:["assignedUsers"]})
+  console.log("policyUsersList",policyUsersList)
+  return policyUsersList;
+  // return policyUsersList; 
  }
   async finalResponseData(
     userConfig: TrackTimeStatus,
