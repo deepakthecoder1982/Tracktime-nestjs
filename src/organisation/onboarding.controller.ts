@@ -17,7 +17,7 @@ import {
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
-import { OnboardingService } from './onboarding.service';
+import { LocalFlaskBaseApi, OnboardingService } from './onboarding.service';
 import { Organization } from './organisation.entity';
 import { DesktopApplication } from './desktop.entity';
 import { Team } from './team.entity';
@@ -43,6 +43,7 @@ import { extname } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { TrackingPolicyDTO } from './dto/tracingpolicy.dto';
 import * as archiver from 'archiver'; // For creating zip files
+import axios from 'axios';
 @Controller('onboarding')
 export class OnboardingController {
   private readonly logger = new Logger(OnboardingController.name);
@@ -51,7 +52,7 @@ export class OnboardingController {
     private readonly userService: AuthService,
     private readonly jwtService: JwtService,
     private readonly organizationAdminService: organizationAdminService,
-  ) { }
+  ) {}
 
   @Post('organization/register')
   async createOrganization(
@@ -477,23 +478,33 @@ export class OnboardingController {
     const organizationAdminIdString = Array.isArray(organizationAdminId)
       ? organizationAdminId[0]
       : organizationAdminId;
-  
+
     if (!organizationAdminIdString) {
       return res
         .status(400)
         .json({ message: 'Organization Admin ID is required' });
     }
-  
+
     try {
-      const OrganizationId = await this.organizationAdminService.findOrganizationById(
-        organizationAdminIdString,
-      );
-  
+      const OrganizationId =
+        await this.organizationAdminService.findOrganizationById(
+          organizationAdminIdString,
+        );
+
       if (!OrganizationId) {
         return res.status(404).json({ error: 'Organization not found !!' });
       }
-  
-      const [devices, users, images, organization, teams, userActivities, policies,lastActive] = await Promise.all([
+
+      const [
+        devices,
+        users,
+        images,
+        organization,
+        teams,
+        userActivities,
+        policies,
+        lastActive,
+      ] = await Promise.all([
         this.onboardingService.findAllDevices(OrganizationId),
         this.onboardingService.findAllUsers(OrganizationId),
         this.onboardingService.fetchScreenShot(),
@@ -501,15 +512,21 @@ export class OnboardingController {
         this.onboardingService.getAllTeam(OrganizationId),
         this.onboardingService.getAllUserActivityData(OrganizationId),
         this.onboardingService.getPoliciesForOrganization(OrganizationId),
-        this.onboardingService.getLastestActivity(OrganizationId)
+        this.onboardingService.getLastestActivity(OrganizationId),
       ]);
-  
+
       const resolvedPolicies = await Promise.all(
-        policies.map(async (pol) => this.onboardingService.getPolicyTeamAndUser(pol.policyId))
+        policies.map(async (pol) =>
+          this.onboardingService.getPolicyTeamAndUser(pol.policyId),
+        ),
       );
-  
-      images?.sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime());
-  
+
+      images?.sort(
+        (a, b) =>
+          new Date(b.lastModified).getTime() -
+          new Date(a.lastModified).getTime(),
+      );
+
       for (const device of devices) {
         device['LatestImage'] = null;
         device['userDetail'] = null;
@@ -521,52 +538,60 @@ export class OnboardingController {
         device['lastActive'] = null; // we can remove this as becase we are using latestImage in user to get LastActive.
         // Assign Latest Image
         const matchingImage = images.find(
-          (img) => img.key.split('/')[1].split('|')[1].split('.')[0] === device.device_uid
+          (img) =>
+            img.key.split('/')[1].split('|')[1].split('.')[0] ===
+            device.device_uid,
         );
         if (matchingImage) {
           device['LatestImage'] = matchingImage;
         }
-        device["lastActive"] = lastActive[device?.device_uid];
+        device['lastActive'] = lastActive[device?.device_uid];
         // Assign IP Address
         const userActivity = userActivities.find(
-          (activity) => activity.user_uid === device.user_uid
+          (activity) => activity.user_uid === device.user_uid,
         );
+
         if (userActivity) {
           device['IP_Adress'] = userActivity.ip_address;
         }
-  
+
         // Assign Policy
         for (const policy of resolvedPolicies) {
           const isUserAssigned = policy.assignedUsers?.some(
-            (userPol) => userPol.user?.userUUID === device.user_uid
+            (userPol) => userPol.user?.userUUID === device.user_uid,
           );
           if (isUserAssigned) {
             device['policy'] = policy.policyName;
             break;
           }
         }
-  
+
         // Assign User Details
-        const userDetail = users.find((user) => user.userUUID === device.user_uid);
+        const userDetail = users.find(
+          (user) => user.userUUID === device.user_uid,
+        );
         if (userDetail) {
           device['userDetail'] = userDetail;
-  
+
           // Assign Team Details
-          const teamDetail = teams.find((team) => team.id === userDetail.teamId);
+          const teamDetail = teams.find(
+            (team) => team.id === userDetail.teamId,
+          );
           if (teamDetail) {
             device['teamDetail'] = teamDetail;
           }
         }
       }
-  
+
       console.log('Final processed devices:', devices);
       return res.status(200).json({ devices, organization });
     } catch (error) {
       console.error('Failed to fetch devices:', error);
-      return res.status(500).json({ message: 'Failed to fetch devices', error: error.message });
+      return res
+        .status(500)
+        .json({ message: 'Failed to fetch devices', error: error.message });
     }
   }
-  
 
   @Get('organization/users/:id')
   async getUserDetails(
@@ -604,9 +629,12 @@ export class OnboardingController {
         page,
         Limit,
       );
+      const userDetails = await this.onboardingService.getUserDeviceId(id);
+      // console.log("userDetails", userDetails);
       const dataCount = await this.onboardingService.getUserDataCount(id);
-      console.log(user, dataCount);
-      return res.status(200).json({ user, dataCount });
+      console.log(user.length, dataCount);
+
+      return res.status(200).json({ user, dataCount, userDetails });
     } catch (error) {
       if (error.message === 'User not found') {
         return res.status(404).json({ message: error.message });
@@ -615,6 +643,65 @@ export class OnboardingController {
         message: 'Failed to fetch user details',
         error: error.message,
       });
+    }
+  }
+
+  @Get('/getProductivityDetails/:userId')
+  async getProductivityDetails(
+    @Req() req: Request,
+    @Res() res: Response,
+    @Param('userId') userId: string,
+    @Query('from') fromTime: string
+  ): Promise<any> {
+    try {
+      // Validate the 'from' date
+      if (!fromTime || isNaN(Date.parse(fromTime))) {
+        return res.status(400).json({ error: 'Invalid or missing `from` date. Use YYYY-MM-DD format.' });
+      }
+
+      // Retrieve the organization admin ID from headers
+      const organizationAdminId = req.headers['organizationAdminId'] as string;
+      if (!organizationAdminId) {
+        return res.status(400).json({ error: 'Missing organizationAdminId header.' });
+      }
+
+      // Find organization by admin ID
+      const organization = await this.organizationAdminService.findOrganizationById(organizationAdminId);
+      if (!organization) {
+        return res.status(404).json({ error: 'Organization not found.' });
+      }
+
+      // Validate the user/device
+      const requestingUser = await this.onboardingService.validateDeviceById(userId);
+      if (!requestingUser) {
+        return res.status(404).json({ error: 'User or device not found.' });
+      }
+
+      // Fetch productivity data from Flask API
+      const flaskUrl = `${LocalFlaskBaseApi}/getUserProductivity/${requestingUser.device_uid}`;
+      const flaskResponse = await axios.get(flaskUrl, {
+        params: { from: fromTime },
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      // Check if Flask response is valid
+      if (!flaskResponse || !flaskResponse.data) {
+        return res.status(500).json({ error: 'Failed to retrieve data from productivity service.' });
+      }
+
+      // Return the response from Flask to the frontend
+      return res.status(200).json(flaskResponse.data);
+    } catch (error) {
+      console.error('Error fetching productivity details:', error.message);
+
+      // Handle specific axios errors
+      if (axios.isAxiosError(error)) {
+        return res.status(error.response?.status || 500).json({
+          error: error.response?.data || 'Error communicating with the productivity service.'
+        });
+      }
+
+      return res.status(500).json({ error: 'Internal server error.' });
     }
   }
 
@@ -946,10 +1033,10 @@ export class OnboardingController {
       // Step 2: Check if Device Exists
       const deviceExist = deviceId
         ? await this.onboardingService.checkDeviceIdExistWithDeviceId(
-          macAddress,
-          deviceId,
-          username,
-        )
+            macAddress,
+            deviceId,
+            username,
+          )
         : await this.onboardingService.checkDeviceIdExist(macAddress, username);
 
       let deviceIdOrNew: string = deviceExist;
@@ -1185,12 +1272,10 @@ export class OnboardingController {
       const calculatedLogic =
         await this.onboardingService.createCalculatedLogic(body, organization);
 
-      return res
-        .status(201)
-        .json({
-          calculatedLogic,
-          message: 'Caculated logic successfully created.',
-        });
+      return res.status(201).json({
+        calculatedLogic,
+        message: 'Caculated logic successfully created.',
+      });
     } catch (error) {
       return res.status(500).json({
         message: 'Failed to create Calculated Logic',
@@ -1298,20 +1383,15 @@ export class OnboardingController {
         );
 
       if (!updateOrganization) {
-        return res
-          .status(304)
-          .json({
-            message:
-              'Not able to update organization data. Please try again.!😢',
-          });
+        return res.status(304).json({
+          message: 'Not able to update organization data. Please try again.!😢',
+        });
       }
 
-      return res
-        .status(200)
-        .json({
-          message: 'Organization updated successfully!!',
-          organization: updateOrganization,
-        });
+      return res.status(200).json({
+        message: 'Organization updated successfully!!',
+        organization: updateOrganization,
+      });
     } catch (error) {
       return res.status(500).json({
         message: 'Failed to update organization data',
@@ -1382,12 +1462,10 @@ export class OnboardingController {
         policyId,
         updatePolicyDto,
       );
-      return res
-        .status(200)
-        .json({
-          message: 'Policy updated successfully!',
-          policy: updatedPolicy,
-        });
+      return res.status(200).json({
+        message: 'Policy updated successfully!',
+        policy: updatedPolicy,
+      });
     } catch (error) {
       console.log(error);
       return res
@@ -1572,12 +1650,10 @@ export class OnboardingController {
         );
       return res.status(200).json({ screenshotSettings });
     } catch (error) {
-      return res
-        .status(500)
-        .json({
-          message: 'Failed to update screenshot!',
-          error: error?.message,
-        });
+      return res.status(500).json({
+        message: 'Failed to update screenshot!',
+        error: error?.message,
+      });
     }
   }
 }

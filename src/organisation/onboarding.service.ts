@@ -35,6 +35,7 @@ import { TrackingHolidays } from './tracking_holidays.entity';
 import { TrackingWeekdays } from './tracking_weekdays.entity';
 import { ConfigurationServicePlaceholders } from 'aws-sdk/lib/config_service_placeholders';
 import { organizationAdminService } from './OrganizationAdmin.service';
+import { ProductivitySettingEntity } from './prodsetting.entity';
 
 export const holidayList = [
   // Indian Holidays
@@ -132,10 +133,10 @@ const weekdayData = [
 
 // You can then save this `weekdayData` into the database using your existing repository methods.
 
-const DeployFlaskBaseApi =
+export const DeployFlaskBaseApi =
   'https://python-link-classification-u2xx.onrender.com';
 
-const LocalFlaskBaseApi = 'http://127.0.0.1:5000';
+export const LocalFlaskBaseApi = 'http://127.0.0.1:5000';
 type UpdateConfigType = DeepPartial<User['config']>;
 
 @Injectable()
@@ -173,9 +174,10 @@ export class OnboardingService {
     private TrackHolidaysRepository: Repository<TrackingHolidays>,
     @InjectRepository(TrackingWeekdays)
     private TrackWeedaysRepository: Repository<TrackingWeekdays>,
+    @InjectRepository(ProductivitySettingEntity)
+    private TrackProdSettingsRepository: Repository<ProductivitySettingEntity>,
     @InjectRepository(CalculatedLogic)
     private calculatedLogicRepository: Repository<CalculatedLogic>,
-    private readonly organizationAdminService: organizationAdminService,
   ) {
     this.s3 = new S3({
       endpoint: this.ConfigureService.get<string>('WASABI_ENDPOINT'),
@@ -501,9 +503,9 @@ export class OnboardingService {
     //If findOneBy is not recognized or you prefer a more explicit approach, use findOne:
     //apply here the logic for sorting the data in timing format and then get's teh data wanted
     const FetchedData = await this.userActivityRepository.find({
-      where: { user_uid: id },
+      where: { user_uid: id,organization_id:organId },
     });
-    console.log('fetched data', FetchedData);
+    // console.log('fetched data', FetchedData);
     const ImgData = await this.fetchScreenShot();
     const userData = await this.findAllDevices(organId);
 
@@ -536,11 +538,11 @@ export class OnboardingService {
     const skip = (page - 1) * limit;
     const take = limit * page;
     const userDataInLimit = userUnsortedData?.slice(skip, take);
-    console.log(page, limit, skip, take);
+    // console.log(page, limit, skip, take);
     return userDataInLimit;
     // const user = await this.userActivityRepository.find({ where: { user_uid:id },
     // skip,
-    // take
+    // take 
     // });
     //  const userDetails = userUnsortedData?.slice(skip,take+1);
 
@@ -667,10 +669,17 @@ export class OnboardingService {
 
   async getUserDeviceId(deviceId: string) {
     try {
-      const device = await this.devicesRepository.find({
+      const device = await this.devicesRepository.findOne({
         where: { device_uid: deviceId },
       });
-
+      const organizationDetails = await this.organizationRepository.findOne({
+        where:{id:device.organization_uid}
+      })
+      const users = await this.userRepository.findOne({where:{userUUID:device?.user_uid},relations:["team"]});
+       
+      console.log("users_team", users.team);
+      device["organizationDetails"] = organizationDetails;
+      device["organizationTeam"] = users.team;
       console.log(device);
 
       return device;
