@@ -133,12 +133,12 @@ const weekdayData = [
 // You can then save this `weekdayData` into the database using your existing repository methods.
 
 export const DeployFlaskBaseApi =
-  'https://python-link-classification-u2xx.onrender.com';
+  'https://python-link-classification-ekpw.onrender.com';
 
 export const LocalFlaskBaseApi = 'http://127.0.0.1:5000';
 type UpdateConfigType = DeepPartial<User['config']>;
 
-@Injectable()
+@Injectable()  
 export class OnboardingService {
   private s3: S3;
   // private flaskApiUrl = `${LocalFlaskBaseApi}/calculate_hourly_productivity?date=2024-06-28`; // Flask API URL
