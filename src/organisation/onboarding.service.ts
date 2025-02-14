@@ -133,7 +133,7 @@ const weekdayData = [
 // You can then save this `weekdayData` into the database using your existing repository methods.
 
 export const DeployFlaskBaseApi =
-  'https://python-link-classification-ekpw.onrender.com';
+  'https://python-link-classification-mqvu.onrender.com';
 
 export const LocalFlaskBaseApi = 'http://127.0.0.1:5000';
 type UpdateConfigType = DeepPartial<User['config']>;
@@ -991,7 +991,8 @@ export class OnboardingService {
       console.log('isExist', isExist);
       if (
         isExist?.user_name &&
-        isExist?.user_name.toLowerCase() === device_user_name.toLowerCase()
+        // isExist?.user_name.toLowerCase() ===
+         device_user_name.toLowerCase()
       ) {
         return isExist?.device_uid;
       }
@@ -1246,7 +1247,9 @@ export class OnboardingService {
     const calculatedLogic = await this.calculatedLogicRepository.findOne({
       where: { organization_id: organizationId },
     });
+
     console.log('calculatedLogic', calculatedLogic);
+
     if (!calculatedLogic) {
       throw new NotFoundException(
         'CalculatedLogic not found for the organization',
@@ -1279,6 +1282,7 @@ export class OnboardingService {
       const recordsOfWeek: any[] = [];
 
       const days = this.getDateRange(fromDate, toDate);
+
       for (const day of days) {
         const activitiesOfDay = userActivities.filter(
           (activity) =>
@@ -1310,7 +1314,7 @@ export class OnboardingService {
 
           if (workDuration >= calculatedLogic.full_day_active_time) {
             status = 'fullDay';
-          } else if (workDuration >= calculatedLogic.half_day_active_time) {
+          } else if (workDuration < calculatedLogic.full_day_active_time &&  workDuration >= calculatedLogic.half_day_active_time) {
             status = 'halfDay';
           }
         } else {
