@@ -1132,6 +1132,7 @@ export class OnboardingController {
       }
 
       // Step 2: Check if Device Exists
+      
       const deviceExist = deviceId
         ? await this.onboardingService.checkDeviceIdExistWithDeviceId(
             macAddress,

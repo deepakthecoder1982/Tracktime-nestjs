@@ -926,7 +926,7 @@ export class OnboardingService {
 
     // Create the device for the user
     console.log(deviceName);
-    const deviceForUser = await this.devicesRepository.create({
+    const deviceForUser = this.devicesRepository.create({
       organization_uid,
       user_name: userName,
       user_uid: user_uid ? user_uid : null,
