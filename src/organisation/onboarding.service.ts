@@ -133,7 +133,7 @@ const weekdayData = [
 // You can then save this `weekdayData` into the database using your existing repository methods.
 
 export const DeployFlaskBaseApi =
-  'https://python-link-classification-mqvu.onrender.com';
+  'https://python-url-classification-with-openai-xxgj.onrender.com';
 
 export const LocalFlaskBaseApi = 'http://127.0.0.1:5000';
 type UpdateConfigType = DeepPartial<User['config']>;
@@ -143,7 +143,7 @@ export class OnboardingService {
   private s3: S3;
   // private flaskApiUrl = `${LocalFlaskBaseApi}/calculate_hourly_productivity?date=2024-06-28`; // Flask API URL
   // private flaskApiUrl = `${LocalFlaskBaseApi}/calculate_hourly_productivity?date=2024-07-14`; // Flask API URL
-  private flaskBaseApiUrl = `${DeployFlaskBaseApi}/calculate_hourly_productivity`;
+  private flaskBaseApiUrl = `${LocalFlaskBaseApi}/calculate_hourly_productivity`;
   private readonly logger = new Logger(OnboardingService.name);
   constructor(
     @InjectRepository(Organization)

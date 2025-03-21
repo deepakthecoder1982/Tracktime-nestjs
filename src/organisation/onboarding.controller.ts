@@ -730,7 +730,7 @@ export class OnboardingController {
       }
 
       // Fetch productivity data from Flask API
-      const flaskUrl = `${DeployFlaskBaseApi}/getUserProductivity/${requestingUser.device_uid}`;
+      const flaskUrl = `${LocalFlaskBaseApi}/getUserProductivity/${requestingUser.device_uid}`;
       const flaskResponse = await axios.get(flaskUrl, {
         params: { from: fromTime },
         headers: { 'Content-Type': 'application/json' },
@@ -746,6 +746,9 @@ export class OnboardingController {
       }
 
       // Return the response from Flask to the frontend
+
+      console.log({"flaskData":flaskResponse.data});
+      
       return res.status(200).json(flaskResponse.data);
     } catch (error) {
       console.error('Error fetching productivity details:', error.message);
