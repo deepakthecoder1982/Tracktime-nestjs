@@ -101,7 +101,7 @@ export class OnboardingController {
       await this.organizationAdminService.updateUserOrganizationId(
         organizationAdminIdString,
         newOrganization?.id,
-      );
+      ); 
 
       return res.status(201).json({
         Error: 'Organization Created successfully !!',
@@ -621,7 +621,7 @@ export class OnboardingController {
       if (!OrganizationId) {
         return res.status(404).json({ error: 'Organization not found !!' });
       }
-      const user = await this.onboardingService.getUserDetails(
+      const user = await this.onboardingService.getUserActivityDetails(
         OrganizationId,
         id,
         page,
@@ -730,7 +730,7 @@ export class OnboardingController {
       }
 
       // Fetch productivity data from Flask API
-      const flaskUrl = `${LocalFlaskBaseApi}/getUserProductivity/${requestingUser.device_uid}`;
+      const flaskUrl = `${DeployFlaskBaseApi}/getUserProductivity/${requestingUser.device_uid}`;
       const flaskResponse = await axios.get(flaskUrl, {
         params: { from: fromTime },
         headers: { 'Content-Type': 'application/json' },
@@ -1419,35 +1419,49 @@ export class OnboardingController {
     }
   }
 
-  @Get("/calculatedLogic")
-  async getCalculatedLogic(
-    @Res() res:Response,
-    @Req() req:Request
-  ){
-    try {
-      const organizationAdminId = req.headers['organizationAdminId'];
-      const organizationAdminIdString = Array.isArray(organizationAdminId)
-        ? organizationAdminId[0]
-        : organizationAdminId;
+@Get("/calculatedLogic")
+async getCalculatedLogic(
+  @Res() res: Response,
+  @Req() req: Request
+) {
+  try {
+    const organizationAdminId = req.headers['organizationAdminId'];
+    const organizationAdminIdString = Array.isArray(organizationAdminId)
+      ? organizationAdminId[0]
+      : organizationAdminId;
 
-      const organization =
-        await this.organizationAdminService.findOrganizationById(
-          organizationAdminIdString,
-        );
+    const organization =
+      await this.organizationAdminService.findOrganizationById(
+        organizationAdminIdString,
+      );
 
-      if (!organization) {
-        return res.status(404).json({ error: 'Organization not found !!' });
-      }
-
-      const calculatedLogic = await this.onboardingService.getCalculatedLogic(organization);
-      return res.status(200).json(calculatedLogic);
-    } catch (error) {
-      return res.status(500).json({
-        message: 'Failed to fetch calculated logic',
-        error: error.message,
-      });
+    if (!organization) {
+      return res.status(404).json({ error: 'Organization not found !!' });
     }
+
+    const calculatedLogic = await this.onboardingService.getCalculatedLogic(organization);
+    
+    // Map the database response to match frontend expectations
+    const response = {
+      full_day_active_time: calculatedLogic?.full_day_active_time,
+      full_day_core_productive_time: calculatedLogic?.full_day_core_productive_time,
+      full_day_productive_time: calculatedLogic?.full_day_productive_time,
+      full_day_idle_productive_time: calculatedLogic?.full_day_idle_productive_time,
+      half_day_active_time: calculatedLogic?.half_day_active_time,
+      half_day_core_productive_time: calculatedLogic?.half_day_core_productive_time,
+      half_day_productive_time: calculatedLogic?.half_day_productive_time,
+      half_day_idle_productive_time: calculatedLogic?.half_day_idle_productive_time,
+      timesheetCalculationLogic: calculatedLogic?.timesheet_calculation_logic || 'coreProductivePlusProductive', // Add this line
+    };
+    
+    return res.status(200).json(response);
+  } catch (error) {
+    return res.status(500).json({
+      message: 'Failed to fetch calculated logic',
+      error: error.message,
+    });
   }
+}
 
   @Delete('/policy/delete/:policy_id')
   async deletePolicy(
