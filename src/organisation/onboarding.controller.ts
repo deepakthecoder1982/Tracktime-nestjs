@@ -572,6 +572,8 @@ export class OnboardingController {
     }
   }
 
+  // Update your getAllDevices method in OnboardingController
+
   @Get('organization/devices')
   async getAllDevices(
     @Res() res: Response,
@@ -607,6 +609,7 @@ export class OnboardingController {
         userActivities,
         policies,
         lastActive,
+        recentActivityData, // Add this new data
       ] = await Promise.all([
         this.onboardingService.findAllDevices(OrganizationId),
         this.onboardingService.findAllUsers(OrganizationId),
@@ -616,6 +619,7 @@ export class OnboardingController {
         this.onboardingService.getAllUserActivityData(OrganizationId),
         this.onboardingService.getPoliciesForOrganization(OrganizationId),
         this.onboardingService.getLastestActivity(OrganizationId),
+        this.onboardingService.getRecentActivityData(OrganizationId), // Add this call
       ]);
 
       const resolvedPolicies = await Promise.all(
@@ -638,7 +642,21 @@ export class OnboardingController {
         device['timeZone'] = organization?.timeZone;
         device['IP_Adress'] = null;
         device['policy'] = null;
-        device['lastActive'] = null; // we can remove this as becase we are using latestImage in user to get LastActive.
+        device['lastActive'] = null;
+
+        // Add recent activity data
+        const activityData = recentActivityData[device.device_uid] || {
+          inTime: '00:00',
+          outTime: '00:00',
+          activeTime: '00:00',
+          status: 'away',
+          productivity: '0%',
+          lastActiveDate: null,
+        };
+
+        device['recentActivity'] = activityData;
+        device['deviceStatus'] = activityData.status; // For frontend filtering
+
         // Assign Latest Image
         const matchingImage = images.find(
           (img) =>
@@ -648,7 +666,9 @@ export class OnboardingController {
         if (matchingImage) {
           device['LatestImage'] = matchingImage;
         }
+
         device['lastActive'] = lastActive[device?.device_uid];
+
         // Assign IP Address
         const userActivity = userActivities.find(
           (activity) => activity.user_uid === device.user_uid,
@@ -686,7 +706,7 @@ export class OnboardingController {
         }
       }
 
-      console.log('Final processed devices:', devices);
+      console.log('Final processed devices with recent activity:', devices);
       return res.status(200).json({ devices, organization });
     } catch (error) {
       console.error('Failed to fetch devices:', error);
@@ -792,7 +812,112 @@ export class OnboardingController {
       });
     }
   }
+@Post('/exportTimeSheetData')
+async exportTimeSheetData(
+  @Res() res: Response,
+  @Req() req: Request,
+  @Body()
+  exportData: {
+    users: string[] | 'all';
+    date: string;
+    format: 'csv' | 'excel' | 'pdf' | 'txt'; // Make sure 'txt' is included
+    userData: any[];
+  },
+): Promise<void | Response> {
+  try {
+    const organizationAdminId = req.headers['organizationAdminId'];
+    const organizationAdminIdString = Array.isArray(organizationAdminId)
+      ? organizationAdminId[0]
+      : organizationAdminId;
 
+    if (!organizationAdminIdString) {
+      return res.status(400).json({
+        message: 'Organization Admin ID is required',
+      });
+    }
+
+    const OrganizationId =
+      await this.organizationAdminService.findOrganizationById(
+        organizationAdminIdString,
+      );
+
+    if (!OrganizationId) {
+      return res.status(404).json({ error: 'Organization not found!' });
+    }
+
+    // Get timesheet data for the specified date
+    const userActivityData =
+      await this.onboardingService.getAllUserActivityData(OrganizationId);
+
+    const timeSheetData = await this.onboardingService.getTimeSheetData(
+      userActivityData,
+      exportData.date,
+      OrganizationId,
+    );
+
+    // Filter data based on selected users
+    let filteredData = timeSheetData.daily;
+    if (exportData.users !== 'all') {
+      filteredData = filteredData.filter((user) =>
+        exportData.users.includes(user.id),
+      );
+    }
+
+    // Generate export based on format
+    const exportResult = await this.onboardingService.generateExport(
+      filteredData,
+      exportData.format,
+      exportData.date,
+    );
+
+    // Set appropriate headers based on format - UPDATED with proper TXT handling
+    const formatConfig = {
+      csv: {
+        contentType: 'text/csv',
+        extension: 'csv',
+      },
+      excel: {
+        contentType:
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        extension: 'xlsx',
+      },
+      pdf: {
+        contentType: 'application/pdf',
+        extension: 'pdf',
+      },
+      txt: {
+        contentType: 'text/plain; charset=utf-8', // Enhanced content type
+        extension: 'txt',
+      },
+    };
+
+    const config = formatConfig[exportData.format];
+    const fileName = `timesheet_${exportData.date}.${config.extension}`;
+
+    res.set({
+      'Content-Type': config.contentType,
+      'Content-Disposition': `attachment; filename="${fileName}"`,
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+    });
+
+    // Handle different format types properly
+    if (exportData.format === 'excel' || exportData.format === 'pdf') {
+      // For binary formats, send the buffer
+      res.send(exportResult);
+    } else {
+      // For text formats (csv, txt), send as string with proper encoding
+      res.send(exportResult);
+    }
+  } catch (error) {
+    console.error('Export failed:', error);
+    return res.status(500).json({
+      message: 'Failed to export timesheet data',
+      error: error.message,
+    });
+  }
+}
   @Get('/getProductivityDetails/:userId')
   async getProductivityDetails(
     @Req() req: Request,
@@ -1589,24 +1714,61 @@ export class OnboardingController {
         return res.status(404).json({ error: 'Organization not found !!' });
       }
 
-      const { filetype } = req.query;
-      const pkgFolderPath = path.join(
-        'D:',
-        'practise',
-        'SortWindDirectoryAndWork',
-        'NestJSCrud',
-        'tracktime-authentication',
+      const { os, fileType } = req.query;
+
+      // Validate OS parameter
+      const supportedOS = ['windows', 'linux', 'macos'];
+      if (!os || !supportedOS.includes(os as string)) {
+        return res.status(400).json({
+          error:
+            'Invalid or missing OS parameter. Supported values: windows, linux, macos',
+        });
+      }
+
+      const selectedOS = os as string;
+
+      // For Windows, validate file type
+      if (selectedOS === 'windows' && !fileType) {
+        return res.status(400).json({
+          error: 'File type is required for Windows installation',
+        });
+      }
+
+      console.log(
+        `Processing download for OS: ${selectedOS}, FileType: ${fileType || 'default'}`,
+      );
+
+      // Get the appropriate installer path
+      const installerBasePath = path.join(
+        process.cwd(),
         'src',
         'organisation',
         'Installer',
-        'pkg',
       );
-      const installerFolderPath = path.join(pkgFolderPath, '..'); // Parent directory of `pkg`
-      const configFilePath = path.join(pkgFolderPath, 'dev_config.txt');
 
+      const osInstallerPath = path.join(installerBasePath, selectedOS);
+
+      // Check if OS folder exists
+      if (!fs.existsSync(osInstallerPath)) {
+        return res.status(404).json({
+          error: `Installer not available for ${selectedOS}`,
+        });
+      }
+
+      const configFilePath = path.join(osInstallerPath, 'dev_config.txt');
+
+      // Check if config file exists
+      if (!fs.existsSync(configFilePath)) {
+        return res.status(404).json({
+          error: `Configuration file not found for ${selectedOS}`,
+        });
+      }
+
+      // Encryption setup
       const key = 'an example very very secret key.';
       const iv = Buffer.alloc(16, 0);
 
+      // Read and update config file
       let configContents = fs.readFileSync(configFilePath, 'utf8');
       const deviceId = 'null';
       const encryptedDeviceId = this.encryptData(deviceId, key, iv);
@@ -1619,59 +1781,159 @@ export class OnboardingController {
           `organizationId=${encryptedOrganizationId}`,
         );
 
+      // Write updated config back to file
       fs.writeFileSync(configFilePath, updatedConfig);
-      console.log('Config file updated successfully');
+      console.log(`Config file updated successfully for ${selectedOS}`);
 
+      // Create zip file
       const outputZipPath = path.join(
-        installerFolderPath,
-        `${organization}_package.zip`,
+        installerBasePath,
+        `${organization}_${selectedOS}_package.zip`,
       );
+
       const output = fs.createWriteStream(outputZipPath);
       const archive = archiver('zip', { zlib: { level: 9 } });
 
+      // Enhanced error handling for archive
+      archive.on('error', (err) => {
+        console.error('Archive error:', err);
+        if (!res.headersSent) {
+          return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+            message: 'Error creating zip file',
+            error: err.message,
+          });
+        }
+      });
+
+      // Log archive progress
+      archive.on('progress', (progress) => {
+        console.log(
+          `Archive progress: ${progress.entries.processed}/${progress.entries.total} files processed`,
+        );
+      });
+
       output.on('close', async () => {
-        console.log(`${archive.pointer()} total bytes`);
+        console.log(
+          `Archive created successfully: ${archive.pointer()} total bytes`,
+        );
         console.log(
           'Archiver has been finalized and the output file descriptor has closed.',
         );
 
-        // Send the zip file
-        res.set({
-          'Content-Disposition': `attachment; filename="${organization}_package.zip"`,
-          'Content-Type': 'application/zip',
-        });
-        res.status(HttpStatus.OK).sendFile(outputZipPath, {}, async (err) => {
-          if (err) {
-            console.error('Error sending file:', err);
-          } else {
-            console.log('File sent successfully.');
-            // Delete the zip file after sending
+        // Verify the zip file was created
+        if (!fs.existsSync(outputZipPath)) {
+          return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+            message: 'Zip file was not created successfully',
+          });
+        }
+
+        try {
+          // Send the zip file
+          res.set({
+            'Content-Disposition': `attachment; filename="${organization}_${selectedOS}_package.zip"`,
+            'Content-Type': 'application/zip',
+            'Content-Length': fs.statSync(outputZipPath).size.toString(),
+          });
+
+          res.status(HttpStatus.OK).sendFile(outputZipPath, {}, async (err) => {
+            if (err) {
+              console.error('Error sending file:', err);
+            } else {
+              console.log('File sent successfully.');
+            }
+
+            // Clean up: Delete the zip file after sending (or after error)
             try {
-              fs.unlinkSync(outputZipPath);
-              console.log('Zip file deleted successfully.');
+              if (fs.existsSync(outputZipPath)) {
+                fs.unlinkSync(outputZipPath);
+                console.log('Zip file deleted successfully.');
+              }
             } catch (unlinkError) {
               console.error('Error deleting zip file:', unlinkError);
             }
+          });
+        } catch (sendError) {
+          console.error('Error setting up file send:', sendError);
+          // Clean up on error
+          try {
+            if (fs.existsSync(outputZipPath)) {
+              fs.unlinkSync(outputZipPath);
+            }
+          } catch (unlinkError) {
+            console.error(
+              'Error deleting zip file after send error:',
+              unlinkError,
+            );
           }
-        });
+
+          if (!res.headersSent) {
+            return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+              message: 'Error sending zip file',
+              error: sendError.message,
+            });
+          }
+        }
       });
 
-      archive.on('error', (err) => {
-        throw new HttpException(
-          'Error zipping the files',
-          HttpStatus.INTERNAL_SERVER_ERROR,
+      output.on('error', (err) => {
+        console.error('Output stream error:', err);
+        if (!res.headersSent) {
+          return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+            message: 'Error writing zip file',
+            error: err.message,
+          });
+        }
+      });
+
+      // Get all files in the directory and add them explicitly
+      try {
+        const files = fs.readdirSync(osInstallerPath);
+        console.log(
+          `Found ${files.length} files in ${selectedOS} directory:`,
+          files,
         );
-      });
 
-      // Exclude existing zip files and add only files inside `pkg` directory
-      archive.glob('**/*', {
-        cwd: pkgFolderPath,
-        ignore: ['*.zip'], // Exclude zip files
-      });
-      archive.pipe(output);
-      archive.finalize();
+        let filesAdded = 0;
+        const totalFiles = files.length;
+
+        for (const file of files) {
+          const filePath = path.join(osInstallerPath, file);
+          const stats = fs.statSync(filePath);
+
+          if (stats.isFile()) {
+            // Read file and add to archive
+            const fileBuffer = fs.readFileSync(filePath);
+            archive.append(fileBuffer, { name: file });
+            filesAdded++;
+            console.log(
+              `Added file ${filesAdded}/${totalFiles}: ${file} (${stats.size} bytes)`,
+            );
+          } else if (stats.isDirectory()) {
+            // Add directory recursively
+            archive.directory(filePath, file);
+            filesAdded++;
+            console.log(
+              `Added directory ${filesAdded}/${totalFiles}: ${file}/`,
+            );
+          }
+        }
+
+        console.log(`Successfully added ${filesAdded} items to archive`);
+
+        // Pipe archive data to the file
+        archive.pipe(output);
+
+        // Finalize the archive (this is important!)
+        await archive.finalize();
+      } catch (fileError) {
+        console.error('Error reading directory files:', fileError);
+        return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+          message: 'Error reading installer files',
+          error: fileError.message,
+        });
+      }
     } catch (error) {
-      console.error('Error:', error);
+      console.error('General error in downloadApplication:', error);
       return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
         message: 'Failed to download the application!',
         error: error.message,

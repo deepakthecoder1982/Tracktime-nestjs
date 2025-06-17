@@ -15,7 +15,6 @@ import { UserActivity } from 'src/users/user_activity.entity';
 import { DeepPartial } from 'typeorm';
 import { prototype } from 'events';
 import { ConfigService } from '@nestjs/config';
-import fs from 'fs';
 import { AccessAnalyzer, S3 } from 'aws-sdk';
 import { Devices } from './devices.entity';
 import { validate } from 'class-validator';
@@ -36,6 +35,11 @@ import { ConfigurationServicePlaceholders } from 'aws-sdk/lib/config_service_pla
 import { organizationAdminService } from './OrganizationAdmin.service';
 import { ProductivitySettingEntity } from './prodsetting.entity';
 import { Resend } from 'resend';
+import * as ExcelJS from 'exceljs';
+import * as PDFDocument from 'pdfkit';
+import { createObjectCsvWriter } from 'csv-writer';
+import * as fs from 'fs';
+import * as path from 'path';
 
 export const holidayList = [
   // Indian Holidays
@@ -134,7 +138,7 @@ const weekdayData = [
 // You can then save this `weekdayData` into the database using your existing repository methods.
 
 export const DeployFlaskBaseApi =
-  'https://python-url-classification-with-openai-1zax.onrender.com';
+  'https://python-url-classification-with-openai-6ujb.onrender.com';
 
 export const LocalFlaskBaseApi = 'http://127.0.0.1:5000';
 type UpdateConfigType = DeepPartial<User['config']>;
@@ -376,6 +380,312 @@ ${sanitizedOrgName} Team
       console.error('Error finding unassigned devices:', error);
       throw new Error('Failed to fetch unassigned devices');
     }
+  }
+
+  async generateExport(
+    data: any[],
+    format: 'csv' | 'excel' | 'pdf' | 'txt',
+    date: string,
+  ): Promise<Buffer | string> {
+    console.log(
+      `Generating export in ${format} format for ${data.length} records`,
+    );
+
+    try {
+      switch (format) {
+        case 'csv':
+          return this.generateCSV(data, date);
+        case 'excel':
+          return this.generateExcel(data, date);
+        case 'pdf':
+          return this.generatePDF(data, date);
+        case 'txt':
+          return this.generateText(data, date);
+        default:
+          throw new Error(`Unsupported export format: ${format}`);
+      }
+    } catch (error) {
+      console.error(`Error generating ${format} export:`, error);
+      throw new Error(`Failed to generate ${format} export: ${error.message}`);
+    }
+  }
+
+  private async generateCSV(data: any[], date: string): Promise<string> {
+    const headers = [
+      { id: 'name', title: 'Employee Name' },
+      { id: 'inTime', title: 'In Time' },
+      { id: 'outTime', title: 'Out Time' },
+      { id: 'workHour', title: 'Work Hours' },
+      { id: 'date', title: 'Date' },
+    ];
+
+    const records = data.map((item) => ({
+      name: item.name || 'N/A',
+      inTime: item.InTime || '00:00',
+      outTime: item.OutTime || '00:00',
+      workHour: item.WorkHour || '00:00',
+      date: this.formatDate(date),
+    }));
+
+    // Create CSV content manually since csv-writer requires file system
+    let csvContent = headers.map((h) => h.title).join(',') + '\n';
+
+    records.forEach((record) => {
+      const row = [
+        `"${record.name}"`,
+        `"${record.inTime}"`,
+        `"${record.outTime}"`,
+        `"${record.workHour}"`,
+        `"${record.date}"`,
+      ].join(',');
+      csvContent += row + '\n';
+    });
+
+    return csvContent;
+  }
+
+  private async generateExcel(data: any[], date: string): Promise<Buffer> {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Timesheet Data');
+
+    // Add title
+    worksheet.mergeCells('A1:E1');
+    const titleCell = worksheet.getCell('A1');
+    titleCell.value = `Timesheet Report - ${this.formatDate(date)}`;
+    titleCell.font = { bold: true, size: 16 };
+    titleCell.alignment = { horizontal: 'center' };
+
+    // Add headers
+    const headers = [
+      'Employee Name',
+      'In Time',
+      'Out Time',
+      'Work Hours',
+      'Date',
+    ];
+    const headerRow = worksheet.addRow(headers);
+    headerRow.eachCell((cell) => {
+      cell.font = { bold: true };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE0E0E0' },
+      };
+      cell.border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' },
+      };
+    });
+
+    // Add data rows
+    data.forEach((item) => {
+      const row = worksheet.addRow([
+        item.name || 'N/A',
+        item.InTime || '00:00',
+        item.OutTime || '00:00',
+        item.WorkHour || '00:00',
+        this.formatDate(date),
+      ]);
+
+      row.eachCell((cell) => {
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' },
+        };
+      });
+    });
+
+    // Auto-fit columns
+    worksheet.columns.forEach((column) => {
+      column.width = 15;
+    });
+
+    // Generate buffer
+    return (await workbook.xlsx.writeBuffer()) as Buffer;
+  }
+
+  private async generatePDF(data: any[], date: string): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      try {
+        const doc = new PDFDocument({ margin: 50 });
+        const chunks: Buffer[] = [];
+
+        doc.on('data', (chunk) => chunks.push(chunk));
+        doc.on('end', () => resolve(Buffer.concat(chunks)));
+
+        // Add title
+        doc
+          .fontSize(20)
+          .font('Helvetica-Bold')
+          .text(`Timesheet Report`, 50, 50);
+        doc
+          .fontSize(14)
+          .font('Helvetica')
+          .text(`Date: ${this.formatDate(date)}`, 50, 80);
+
+        // Add table headers
+        const startY = 120;
+        const headers = [
+          'Employee Name',
+          'In Time',
+          'Out Time',
+          'Work Hours',
+          'Date',
+        ];
+        const columnWidths = [150, 80, 80, 80, 100];
+        let currentY = startY;
+
+        // Draw header row
+        doc.fontSize(12).font('Helvetica-Bold');
+        let currentX = 50;
+        headers.forEach((header, index) => {
+          doc.rect(currentX, currentY, columnWidths[index], 25).stroke();
+          doc.text(header, currentX + 5, currentY + 7, {
+            width: columnWidths[index] - 10,
+            align: 'left',
+          });
+          currentX += columnWidths[index];
+        });
+
+        currentY += 25;
+
+        // Draw data rows
+        doc.font('Helvetica');
+        data.forEach((item) => {
+          currentX = 50;
+          const rowData = [
+            item.name || 'N/A',
+            item.InTime || '00:00',
+            item.OutTime || '00:00',
+            item.WorkHour || '00:00',
+            this.formatDate(date),
+          ];
+
+          rowData.forEach((cellData, index) => {
+            doc.rect(currentX, currentY, columnWidths[index], 25).stroke();
+            doc.text(String(cellData), currentX + 5, currentY + 7, {
+              width: columnWidths[index] - 10,
+              align: 'left',
+            });
+            currentX += columnWidths[index];
+          });
+
+          currentY += 25;
+
+          // Add new page if needed
+          if (currentY > 700) {
+            doc.addPage();
+            currentY = 50;
+          }
+        });
+
+        // Add summary
+        currentY += 20;
+        doc
+          .fontSize(12)
+          .font('Helvetica-Bold')
+          .text(`Total Employees: ${data.length}`, 50, currentY);
+
+        doc.end();
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  private generateText(data: any[], date: string): string {
+    const formattedDate = this.formatDate(date);
+    const reportTitle = 'TIMESHEET REPORT';
+    const separator = '='.repeat(80);
+    const subSeparator = '-'.repeat(60);
+
+    let textContent = '';
+
+    // Header section
+    textContent += `${separator}\n`;
+    textContent += `${' '.repeat((80 - reportTitle.length) / 2)}${reportTitle}\n`;
+    textContent += `${separator}\n`;
+    textContent += `Report Date: ${formattedDate}\n`;
+    textContent += `Generated: ${new Date().toLocaleString('en-US', {
+      dateStyle: 'full',
+      timeStyle: 'short',
+    })}\n`;
+    textContent += `Total Employees: ${data.length}\n`;
+    textContent += `${separator}\n\n`;
+
+    // Employee data section
+    if (data.length === 0) {
+      textContent += `No employee data found for ${formattedDate}\n`;
+    } else {
+      data.forEach((item, index) => {
+        textContent += `EMPLOYEE ${(index + 1).toString().padStart(3, '0')}\n`;
+        textContent += `${subSeparator}\n`;
+        textContent += `Name        : ${item.name || 'N/A'}\n`;
+        textContent += `Check In    : ${item.InTime || '00:00'}\n`;
+        textContent += `Check Out   : ${item.OutTime || '00:00'}\n`;
+        textContent += `Work Hours  : ${item.WorkHour || '00:00'}\n`;
+        textContent += `Date        : ${formattedDate}\n`;
+
+        // Calculate status based on work hours
+        const workHour = item.WorkHour || '00:00';
+        const [hours, minutes] = workHour.split(':').map(Number);
+        const totalMinutes = hours * 60 + minutes;
+        const totalHours = totalMinutes / 60;
+
+        let status = 'Absent';
+        if (totalHours >= 8) status = 'Full Day';
+        else if (totalHours >= 4) status = 'Half Day';
+        else if (totalHours > 0) status = 'Partial';
+
+        textContent += `Status      : ${status}\n`;
+        textContent += `${subSeparator}\n\n`;
+      });
+    }
+
+    // Summary section
+    textContent += `${separator}\n`;
+    textContent += `SUMMARY\n`;
+    textContent += `${separator}\n`;
+
+    if (data.length > 0) {
+      const fullDayCount = data.filter((item) => {
+        const workHour = item.WorkHour || '00:00';
+        const [hours] = workHour.split(':').map(Number);
+        return hours >= 8;
+      }).length;
+
+      const halfDayCount = data.filter((item) => {
+        const workHour = item.WorkHour || '00:00';
+        const [hours] = workHour.split(':').map(Number);
+        return hours >= 4 && hours < 8;
+      }).length;
+
+      const partialCount = data.filter((item) => {
+        const workHour = item.WorkHour || '00:00';
+        const [hours] = workHour.split(':').map(Number);
+        return hours > 0 && hours < 4;
+      }).length;
+
+      const absentCount =
+        data.length - fullDayCount - halfDayCount - partialCount;
+
+      textContent += `Full Day Attendance    : ${fullDayCount.toString().padStart(3)} employees\n`;
+      textContent += `Half Day Attendance    : ${halfDayCount.toString().padStart(3)} employees\n`;
+      textContent += `Partial Attendance     : ${partialCount.toString().padStart(3)} employees\n`;
+      textContent += `Absent                 : ${absentCount.toString().padStart(3)} employees\n`;
+      textContent += `${subSeparator}\n`;
+      textContent += `Total Employees        : ${data.length.toString().padStart(3)}\n`;
+    }
+
+    textContent += `${separator}\n`;
+    textContent += `End of Report\n`;
+    textContent += `${separator}`;
+
+    return textContent;
   }
   async getLastestActivity(
     organid: string,
@@ -756,7 +1066,212 @@ ${sanitizedOrgName} Team
       throw new Error('Failed to fetch devices');
     }
   }
+  async getRecentActivityData(organizationId: string): Promise<any> {
+    try {
+      // Get all devices for the organization
+      const devices = await this.devicesRepository.find({
+        where: { organization_uid: organizationId },
+      });
 
+      const deviceIds = devices.map((device) => device.device_uid);
+
+      // Get all user activities for the organization
+      const userActivities = await this.userActivityRepository.find({
+        where: { organization_id: organizationId },
+        order: { timestamp: 'DESC' },
+      });
+
+      const result = {};
+
+      for (const device of devices) {
+        // Get activities for this specific device
+        const deviceActivities = userActivities.filter(
+          (activity) => activity.user_uid === device.device_uid,
+        );
+
+        if (deviceActivities.length === 0) {
+          result[device.device_uid] = {
+            inTime: '00:00',
+            outTime: '00:00',
+            activeTime: '00:00',
+            status: 'away',
+            productivity: '0%',
+            lastActiveDate: null,
+          };
+          continue;
+        }
+
+        // Find the most recent day with data (yesterday first, then most recent)
+        const today = new Date();
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+
+        // Try to get yesterday's data first
+        let targetActivities = deviceActivities.filter((activity) =>
+          this.isSameDay(new Date(activity.timestamp), yesterday),
+        );
+
+        let targetDate = yesterday;
+        let status = 'idle'; // Data available but not today
+
+        // If no yesterday data, get the most recent day's data
+        if (targetActivities.length === 0) {
+          // Group activities by date
+          const activitiesByDate = this.groupActivitiesByDate(deviceActivities);
+          const dates = Object.keys(activitiesByDate).sort(
+            (a, b) => new Date(b).getTime() - new Date(a).getTime(),
+          );
+
+          if (dates.length > 0) {
+            const mostRecentDate = dates[0];
+            targetActivities = activitiesByDate[mostRecentDate];
+            targetDate = new Date(mostRecentDate);
+
+            // Check if it's today's data
+            if (this.isSameDay(targetDate, today)) {
+              status = 'active';
+            }
+          }
+        }
+
+        if (targetActivities.length === 0) {
+          result[device.device_uid] = {
+            inTime: '00:00',
+            outTime: '00:00',
+            activeTime: '00:00',
+            status: 'away',
+            productivity: '0%',
+            lastActiveDate: null,
+          };
+          continue;
+        }
+
+        // Sort activities by timestamp for the target date
+        const sortedActivities = targetActivities.sort(
+          (a, b) =>
+            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+        );
+
+        const firstActivity = sortedActivities[0];
+        const lastActivity = sortedActivities[sortedActivities.length - 1];
+
+        // Calculate in/out times
+        const inTime = this.formatTime(firstActivity.timestamp);
+        const outTime = this.formatTime(lastActivity.timestamp);
+
+        // Calculate active time (duration between first and last activity)
+        const activeTime = this.calculateDuration(
+          firstActivity.timestamp,
+          lastActivity.timestamp,
+        );
+
+        // Calculate productivity for that day
+        const productivity = await this.calculateDayProductivity(
+          targetActivities,
+          targetDate,
+        );
+
+        result[device.device_uid] = {
+          inTime,
+          outTime,
+          activeTime,
+          status,
+          productivity: `${productivity}%`,
+          lastActiveDate: this.formatDate(targetDate),
+        };
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Error getting recent activity data:', error);
+      throw new Error('Failed to get recent activity data');
+    }
+  }
+  private groupActivitiesByDate(activities: UserActivity[]): {
+    [date: string]: UserActivity[];
+  } {
+    return activities.reduce((grouped, activity) => {
+      const date = new Date(activity.timestamp).toDateString();
+      if (!grouped[date]) {
+        grouped[date] = [];
+      }
+      grouped[date].push(activity);
+      return grouped;
+    }, {});
+  }
+
+  // Helper method to calculate productivity for a day
+  private async calculateDayProductivity(
+    activities: UserActivity[],
+    date: Date,
+  ): Promise<number> {
+    try {
+      if (activities.length === 0) return 0;
+
+      // Count productive vs total activities
+      const productiveActivities = activities.filter((activity) => {
+        // You can customize this logic based on your productivity criteria
+        // For now, assuming activities with certain app names or page titles are productive
+        const productiveApps = [
+          'vscode',
+          'visual studio',
+          'intellij',
+          'sublime',
+          'atom',
+        ];
+        const unproductiveApps = [
+          'youtube',
+          'facebook',
+          'instagram',
+          'twitter',
+          'tiktok',
+        ];
+
+        const appName = activity.app_name?.toLowerCase() || '';
+        const pageTitle = activity.page_title?.toLowerCase() || '';
+
+        // Check if it's a productive app
+        if (
+          productiveApps.some(
+            (app) => appName.includes(app) || pageTitle.includes(app),
+          )
+        ) {
+          return true;
+        }
+
+        // Check if it's an unproductive app
+        if (
+          unproductiveApps.some(
+            (app) => appName.includes(app) || pageTitle.includes(app),
+          )
+        ) {
+          return false;
+        }
+
+        // Default to neutral/productive for unknown apps
+        return true;
+      });
+
+      const productivityPercentage = Math.round(
+        (productiveActivities.length / activities.length) * 100,
+      );
+
+      return productivityPercentage;
+    } catch (error) {
+      console.error('Error calculating productivity:', error);
+      return 0;
+    }
+  }
+
+  // Helper method to format date
+  private formatDate(date: string | Date): string {
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    return dateObj.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  }
   async fetchAllOrganization(organId: string): Promise<Organization> {
     return await this.organizationRepository.findOne({
       where: { id: organId },
@@ -1066,10 +1581,6 @@ ${sanitizedOrgName} Team
     );
   }
 
-  private isWithinRange(date: Date, start: Date, end: Date): boolean {
-    return date >= start && date <= end;
-  }
-
   private formatTime(timestamp: Date): string {
     const date = new Date(timestamp);
     return date.toTimeString().split(' ')[0].slice(0, 5); // HH:mm format
@@ -1078,11 +1589,10 @@ ${sanitizedOrgName} Team
   private calculateDuration(start: Date, end: Date): string {
     const duration =
       (new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60 * 60); // in hours
-    return `${Math.floor(duration)}:${Math.round((duration % 1) * 60)
-      .toString()
-      .padStart(2, '0')}`;
+    const hours = Math.floor(duration);
+    const minutes = Math.round((duration % 1) * 60);
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
   }
-
   async validateOrganization(organid: string): Promise<boolean> {
     const organId = await this.organizationRepository.findOne({
       where: { id: organid },
@@ -1393,7 +1903,7 @@ ${sanitizedOrgName} Team
   async ValidateUserByGmail(email: string) {
     try {
       let user = await this.userRepository.findOne({ where: { email: email } });
-      return user;  
+      return user;
     } catch (err) {
       throw new BadRequestException(`Error: ${err}`);
     }
