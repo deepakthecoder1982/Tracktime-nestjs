@@ -596,7 +596,1136 @@ ${sanitizedOrgName} Team
       }
     });
   }
+  async getAttendanceExportData(
+    organizationId: string,
+    startDate: string,
+    endDate: string,
+    users: string[] | 'all',
+    userData?: any[],
+  ): Promise<any[]> {
+    try {
+      const fromDate = new Date(startDate);
+      const toDate = new Date(endDate);
 
+      // Get attendance data using existing method
+      const attendanceData = await this.getWeeklyAttendance(
+        organizationId,
+        fromDate,
+        toDate,
+      );
+
+      if (!attendanceData || attendanceData.length === 0) {
+        return [];
+      }
+
+      // Filter data based on selected users
+      let filteredData = attendanceData;
+
+      if (users !== 'all' && Array.isArray(users) && users.length > 0) {
+        filteredData = attendanceData.filter(
+          (record) =>
+            users.includes(record.device_id) || users.includes(record.user_id),
+        );
+      }
+
+      // Transform data for export format
+      const exportData = filteredData.map((record) => {
+        const baseData = {
+          name: record.user_name || 'Unknown',
+          totalWorkDays: record.totalworkdays || 0,
+          holidays: record.holiday || 0,
+          device_id: record.device_id,
+          user_id: record.user_id,
+        };
+
+        // Add individual date columns
+        if (record.recordsofWeek && record.recordsofWeek.length > 0) {
+          record.recordsofWeek.forEach((dayRecord, index) => {
+            const dateKey = `date_${index + 1}`;
+            const statusKey = `status_${index + 1}`;
+
+            baseData[dateKey] = dayRecord.Date || '';
+            baseData[statusKey] = this.getStatusDisplayText(
+              dayRecord.DateStatus,
+            );
+          });
+        }
+
+        return baseData;
+      });
+
+      return exportData;
+    } catch (error) {
+      console.error('Error getting attendance export data:', error);
+      throw new Error(`Failed to get attendance export data: ${error.message}`);
+    }
+  }
+
+  async generateAttendanceExport(
+    data: any[],
+    format: 'csv' | 'excel' | 'pdf' | 'txt',
+    startDate: string,
+    endDate: string,
+  ): Promise<Buffer | string> {
+    console.log(
+      `Generating attendance export in ${format} format for ${data.length} records`,
+    );
+
+    try {
+      switch (format) {
+        case 'csv':
+          return this.generateAttendanceCSV(data, startDate, endDate);
+        case 'excel':
+          return this.generateAttendanceExcel(data, startDate, endDate);
+        case 'pdf':
+          return this.generateAttendancePDF(data, startDate, endDate);
+        case 'txt':
+          return this.generateAttendanceText(data, startDate, endDate);
+        default:
+          throw new Error(`Unsupported export format: ${format}`);
+      }
+    } catch (error) {
+      console.error(`Error generating ${format} attendance export:`, error);
+      throw new Error(
+        `Failed to generate ${format} attendance export: ${error.message}`,
+      );
+    }
+  }
+// Add these methods to your OnboardingService class
+
+async getActivityTimelineExportData(
+  organizationId: string,
+  date: string,
+  users: string[] | 'all',
+  userData?: any[],
+): Promise<any[]> {
+  try {
+    // Get productivity data from Flask API for the specific date
+    const productivityData = await this.getProductivityData(organizationId, date);
+
+    if (!productivityData || productivityData.length === 0) {
+      return [];
+    }
+
+    // Filter data based on selected users
+    let filteredData = productivityData;
+
+    if (users !== 'all' && Array.isArray(users) && users.length > 0) {
+      // If users array contains indices, filter by those indices
+      if (userData && userData.length > 0) {
+        filteredData = users.map(userIndex => {
+          const index = parseInt(userIndex.toString());
+          return productivityData[index];
+        }).filter(Boolean);
+      } else {
+        // Filter by user names or IDs
+        filteredData = productivityData.filter((record, index) => 
+          users.includes(index.toString()) || 
+          users.includes(record.name) ||
+          users.includes(record.user_id)
+        );
+      }
+    }
+
+    // Transform data for export format
+    const exportData = filteredData.map((record) => {
+      const baseData = {
+        name: record.name || 'Unknown',
+        workingHour: record.workingHour || '0:00',
+        date: this.formatDate(date),
+        user_id: record.user_id || null,
+      };
+
+      // Process productivity timeline (9 AM to 6 PM = 9 hours)
+      if (record.productivityRecord && record.productivityRecord.length > 0) {
+        const timeline = [];
+        
+        // Process first 9 hours (9 AM to 6 PM)
+        record.productivityRecord.slice(0, 9).forEach((hour, hourIndex) => {
+          const hourTime = 9 + hourIndex; // 9 AM, 10 AM, etc.
+          
+          // Each hour has 6 ten-minute segments
+          for (let segmentIndex = 0; segmentIndex < 6; segmentIndex++) {
+            const segment = hour[segmentIndex] || {};
+            const startMinute = segmentIndex * 10;
+            const endMinute = startMinute + 10;
+            
+            const timeSlot = `${hourTime.toString().padStart(2, '0')}:${startMinute.toString().padStart(2, '0')}-${hourTime.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
+            
+            // Determine productivity status with proper fallback
+            let productivity = 'away';
+            if (segment && segment.productivity && parseFloat(segment.percent || '0') > 0) {
+              productivity = segment.productivity.toLowerCase();
+            }
+            
+            timeline.push({
+              timeSlot,
+              productivity: productivity,
+              percent: segment.percent || '0',
+            });
+          }
+        });
+        
+        baseData['timeline'] = timeline;
+      } else {
+        // If no timeline data, fill with 'away' status
+        const timeline = [];
+        for (let hour = 9; hour <= 17; hour++) {
+          for (let segment = 0; segment < 6; segment++) {
+            const startMinute = segment * 10;
+            const endMinute = startMinute + 10;
+            const timeSlot = `${hour.toString().padStart(2, '0')}:${startMinute.toString().padStart(2, '0')}-${hour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
+            timeline.push({
+              timeSlot,
+              productivity: 'away',
+              percent: '0',
+            });
+          }
+        }
+        baseData['timeline'] = timeline;
+      }
+
+      return baseData;
+    });
+
+    return exportData;
+  } catch (error) {
+    console.error('Error getting activity timeline export data:', error);
+    throw new Error(`Failed to get activity timeline export data: ${error.message}`);
+  }
+}
+
+async generateActivityTimelineExport(
+  data: any[],
+  format: 'csv' | 'excel' | 'pdf' | 'txt',
+  date: string,
+): Promise<Buffer | string> {
+  console.log(
+    `Generating activity timeline export in ${format} format for ${data.length} records`,
+  );
+
+  try {
+    switch (format) {
+      case 'csv':
+        return this.generateActivityTimelineCSV(data, date);
+      case 'excel':
+        return this.generateActivityTimelineExcel(data, date);
+      case 'pdf':
+        return this.generateActivityTimelinePDF(data, date);
+      case 'txt':
+        return this.generateActivityTimelineText(data, date);
+      default:
+        throw new Error(`Unsupported export format: ${format}`);
+    }
+  } catch (error) {
+    console.error(`Error generating ${format} activity timeline export:`, error);
+    throw new Error(
+      `Failed to generate ${format} activity timeline export: ${error.message}`,
+    );
+  }
+}
+
+private async generateActivityTimelineCSV(data: any[], date: string): Promise<string> {
+  const formattedDate = this.formatDate(date);
+  
+  // Create header with time slots
+  const timeSlots = [];
+  for (let hour = 9; hour <= 17; hour++) {
+    for (let segment = 0; segment < 6; segment++) {
+      const startMinute = segment * 10;
+      const endMinute = startMinute + 10;
+      timeSlots.push(`${hour.toString().padStart(2, '0')}:${startMinute.toString().padStart(2, '0')}-${hour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`);
+    }
+  }
+
+  const headers = ['Employee Name', 'Work Hours', 'Date', ...timeSlots];
+  let csvContent = headers.join(',') + '\n';
+
+  data.forEach((item) => {
+    const row = [
+      `"${item.name || 'N/A'}"`,
+      `"${item.workingHour || '0:00'}"`,
+      `"${formattedDate}"`,
+    ];
+
+    // Add productivity data for each time slot
+    if (item.timeline && item.timeline.length > 0) {
+      item.timeline.forEach(segment => {
+        row.push(`"${this.getProductivityDisplayText(segment.productivity)}"`);
+      });
+    } else {
+      // Fill with 'Away' if no data
+      timeSlots.forEach(() => row.push('"Away"'));
+    }
+
+    csvContent += row.join(',') + '\n';
+  });
+
+  // Add summary
+  csvContent += '\n';
+  csvContent += '"SUMMARY:"\n';
+  csvContent += `"Total Employees","${data.length}"\n`;
+  csvContent += `"Report Date","${formattedDate}"\n`;
+  csvContent += '"NOTE: Timeline shows productivity status in 10-minute intervals from 9:00 AM to 6:00 PM"\n';
+
+  return csvContent;
+}
+
+private async generateActivityTimelineExcel(data: any[], date: string): Promise<Buffer> {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Activity Timeline');
+
+  const formattedDate = this.formatDate(date);
+
+  // Add title
+  worksheet.mergeCells('A1:BC1'); // Extended to cover all columns (54 time slots + 3 info columns)
+  const titleCell = worksheet.getCell('A1');
+  titleCell.value = `Activity Timeline Report - ${formattedDate}`;
+  titleCell.font = { bold: true, size: 16 };
+  titleCell.alignment = { horizontal: 'center' };
+
+  // Create time slot headers
+  const timeSlots = [];
+  for (let hour = 9; hour <= 17; hour++) {
+    for (let segment = 0; segment < 6; segment++) {
+      const startMinute = segment * 10;
+      const endMinute = startMinute + 10;
+      timeSlots.push(`${hour.toString().padStart(2, '0')}:${startMinute.toString().padStart(2, '0')}-${hour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`);
+    }
+  }
+
+  // Add headers
+  const headers = ['Employee Name', 'Work Hours', 'Date', ...timeSlots];
+  const headerRow = worksheet.addRow(headers);
+
+  headerRow.eachCell((cell, colNumber) => {
+    cell.font = { bold: true, size: 8 };
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' },
+    };
+    cell.border = {
+      top: { style: 'thin' },
+      left: { style: 'thin' },
+      bottom: { style: 'thin' },
+      right: { style: 'thin' },
+    };
+    cell.alignment = { horizontal: 'center', wrapText: true };
+  });
+
+  // Add data rows
+  data.forEach((item) => {
+    const rowData = [
+      item.name || 'N/A',
+      item.workingHour || '0:00',
+      formattedDate,
+    ];
+
+    // Add productivity data for each time slot
+    if (item.timeline && item.timeline.length > 0) {
+      item.timeline.forEach(segment => {
+        rowData.push(this.getProductivityDisplayText(segment.productivity));
+      });
+    } else {
+      // Fill with 'Away' if no data
+      timeSlots.forEach(() => rowData.push('Away'));
+    }
+
+    const row = worksheet.addRow(rowData);
+
+    row.eachCell((cell, colNumber) => {
+      cell.border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' },
+      };
+      cell.alignment = { horizontal: 'center' };
+      cell.font = { size: 8 };
+
+      // Color code productivity cells
+      if (colNumber > 3) { // Skip name, work hours, date columns
+        const productivity = cell.value as string;
+        switch (productivity?.toLowerCase()) {
+          case 'core productive':
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF90EE90' } };
+            break;
+          case 'productive':
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFADD8E6' } };
+            break;
+          case 'unproductive':
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFA07A' } };
+            break;
+          case 'idle':
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
+            break;
+          case 'away':
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD3D3D3' } };
+            break;
+        }
+      }
+    });
+  });
+
+  // Add empty row
+  worksheet.addRow([]);
+
+  // Add summary
+  const summaryRow = worksheet.addRow(['SUMMARY', `Total Employees: ${data.length}`, `Report Date: ${formattedDate}`]);
+  summaryRow.getCell(1).font = { bold: true };
+
+  const noteRow = worksheet.addRow(['NOTE:', 'Timeline shows productivity status in 10-minute intervals from 9:00 AM to 6:00 PM']);
+  noteRow.getCell(1).font = { bold: true };
+
+  // Set column widths
+  worksheet.getColumn(1).width = 20; // Employee Name
+  worksheet.getColumn(2).width = 12; // Work Hours
+  worksheet.getColumn(3).width = 12; // Date
+  
+  // Set narrow width for time slot columns
+  for (let i = 4; i <= headers.length; i++) {
+    worksheet.getColumn(i).width = 6;
+  }
+
+  return (await workbook.xlsx.writeBuffer()) as Buffer;
+}
+
+private async generateActivityTimelinePDF(data: any[], date: string): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    try {
+      const doc = new PDFDocument({ margin: 20, layout: 'landscape' });
+      const chunks: Buffer[] = [];
+
+      doc.on('data', (chunk) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+
+      const formattedDate = this.formatDate(date);
+      const usersPerPage = 6; // Limit users per page for readability
+
+      // Split data into pages
+      const totalPages = Math.ceil(data.length / usersPerPage);
+
+      for (let pageNum = 0; pageNum < totalPages; pageNum++) {
+        if (pageNum > 0) doc.addPage({ layout: 'landscape' });
+
+        const startIndex = pageNum * usersPerPage;
+        const endIndex = Math.min(startIndex + usersPerPage, data.length);
+        const pageData = data.slice(startIndex, endIndex);
+
+        // Add title
+        doc.fontSize(16).font('Helvetica-Bold');
+        doc.text(`Activity Timeline Report - ${formattedDate}`, 50, 40);
+        doc.fontSize(12).font('Helvetica');
+        doc.text(`Page ${pageNum + 1} of ${totalPages}`, 50, 65);
+
+        let currentY = 100;
+
+        pageData.forEach((item, userIndex) => {
+          // User header
+          doc.fontSize(12).font('Helvetica-Bold');
+          doc.text(`${startIndex + userIndex + 1}. ${item.name || 'N/A'} - Work Hours: ${item.workingHour || '0:00'}`, 50, currentY);
+          
+          currentY += 25;
+
+          // Timeline grid
+          const startX = 50;
+          const cellWidth = 12;
+          const cellHeight = 20;
+
+          // Hour headers
+          doc.fontSize(8).font('Helvetica-Bold');
+          for (let hour = 9; hour <= 17; hour++) {
+            const x = startX + (hour - 9) * (cellWidth * 6);
+            doc.text(`${hour}:00`, x + 10, currentY - 5);
+          }
+
+          currentY += 15;
+
+          // Draw timeline grid
+          doc.fontSize(6).font('Helvetica');
+          
+          if (item.timeline && item.timeline.length > 0) {
+            item.timeline.forEach((segment, segmentIndex) => {
+              const hourIndex = Math.floor(segmentIndex / 6);
+              const segmentInHour = segmentIndex % 6;
+              
+              const x = startX + (hourIndex * 6 + segmentInHour) * cellWidth;
+              const y = currentY;
+
+              // Color code and fill cell based on productivity
+              const productivity = segment.productivity?.toLowerCase() || 'away';
+              let fillColor = '#D3D3D3'; // Default gray for away
+
+              switch (productivity) {
+                case 'core productive':
+                  fillColor = '#90EE90'; // Light green
+                  break;
+                case 'productive':
+                  fillColor = '#ADD8E6'; // Light blue
+                  break;
+                case 'unproductive':
+                  fillColor = '#FFA07A'; // Light salmon
+                  break;
+                case 'idle':
+                  fillColor = '#FFFF00'; // Yellow
+                  break;
+                case 'away':
+                  fillColor = '#D3D3D3'; // Gray
+                  break;
+              }
+
+              // Fill cell with color
+              doc.rect(x, y, cellWidth, cellHeight).fillAndStroke(fillColor, '#000000');
+
+              // Add productivity letter
+              const letter = productivity.charAt(0).toUpperCase();
+              doc.fillColor('#000000').text(letter, x + 4, y + 7, { width: cellWidth, align: 'center' });
+            });
+          } else {
+            // Fill with 'Away' if no data
+            for (let i = 0; i < 54; i++) {
+              const hourIndex = Math.floor(i / 6);
+              const segmentInHour = i % 6;
+              
+              const x = startX + (hourIndex * 6 + segmentInHour) * cellWidth;
+              const y = currentY;
+
+              doc.rect(x, y, cellWidth, cellHeight).fillAndStroke('#D3D3D3', '#000000');
+              doc.fillColor('#000000').text('A', x + 4, y + 7, { width: cellWidth, align: 'center' });
+            }
+          }
+
+          currentY += cellHeight + 20;
+
+          // Check if we need to move to next page
+          if (currentY > doc.page.height - 100 && userIndex < pageData.length - 1) {
+            doc.addPage({ layout: 'landscape' });
+            currentY = 50;
+          }
+        });
+
+        // Add legend at bottom of each page
+        if (pageNum === totalPages - 1) { // Only on last page
+          currentY = doc.page.height - 80;
+          doc.fontSize(10).font('Helvetica-Bold');
+          doc.text('Legend:', 50, currentY);
+          
+          currentY += 15;
+          doc.fontSize(8).font('Helvetica');
+          doc.text('C = Core Productive, P = Productive, U = Unproductive, I = Idle, A = Away', 50, currentY);
+        }
+      }
+
+      doc.end();
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+private generateActivityTimelineText(data: any[], date: string): string {
+  const formattedDate = this.formatDate(date);
+  const reportTitle = 'ACTIVITY TIMELINE REPORT';
+  const separator = '='.repeat(120);
+  const subSeparator = '-'.repeat(100);
+
+  let textContent = '';
+
+  // Header section
+  textContent += `${separator}\n`;
+  textContent += `${' '.repeat((120 - reportTitle.length) / 2)}${reportTitle}\n`;
+  textContent += `${separator}\n`;
+  textContent += `Report Date: ${formattedDate}\n`;
+  textContent += `Generated: ${new Date().toLocaleString('en-US', {
+    dateStyle: 'full',
+    timeStyle: 'short',
+  })}\n`;
+  textContent += `Total Employees: ${data.length}\n`;
+  textContent += `${separator}\n\n`;
+
+  // Split data into pages for readability (8 users per page for text format)
+  const usersPerPage = 8;
+  const totalPages = Math.ceil(data.length / usersPerPage);
+
+  for (let pageNum = 0; pageNum < totalPages; pageNum++) {
+    if (pageNum > 0) {
+      textContent += `\n${'='.repeat(50)} PAGE ${pageNum + 1} ${'='.repeat(50)}\n\n`;
+    }
+
+    const startIndex = pageNum * usersPerPage;
+    const endIndex = Math.min(startIndex + usersPerPage, data.length);
+    const pageData = data.slice(startIndex, endIndex);
+
+    pageData.forEach((item, userIndex) => {
+      const globalIndex = startIndex + userIndex;
+      textContent += `EMPLOYEE ${(globalIndex + 1).toString().padStart(3, '0')}\n`;
+      textContent += `${subSeparator}\n`;
+      textContent += `Name                : ${item.name || 'N/A'}\n`;
+      textContent += `Work Hours          : ${item.workingHour || '0:00'}\n`;
+      textContent += `Date                : ${formattedDate}\n`;
+      textContent += `Activity Timeline   : 9:00 AM - 6:00 PM (10-minute intervals)\n\n`;
+
+      // Create timeline visualization
+      if (item.timeline && item.timeline.length > 0) {
+        // Group by hours for better readability
+        for (let hour = 9; hour <= 17; hour++) {
+          const hourSegments = item.timeline.slice((hour - 9) * 6, (hour - 9) * 6 + 6);
+          
+          textContent += `${hour.toString().padStart(2, '0')}:00 - ${hour.toString().padStart(2, '0')}:59  `;
+          
+          hourSegments.forEach(segment => {
+            const symbol = this.getProductivitySymbol(segment.productivity);
+            textContent += symbol;
+          });
+          
+          textContent += `  [${this.getHourSummary(hourSegments)}]\n`;
+        }
+      } else {
+        textContent += `No activity data available for this date.\n`;
+      }
+
+      textContent += `\n${subSeparator}\n\n`;
+    });
+  }
+
+  // Summary section
+  textContent += `${separator}\n`;
+  textContent += `SUMMARY\n`;
+  textContent += `${separator}\n`;
+
+  if (data.length > 0) {
+    let totalCoreProductive = 0;
+    let totalProductive = 0;
+    let totalUnproductive = 0;
+    let totalIdle = 0;
+    let totalAway = 0;
+
+    data.forEach(item => {
+      if (item.timeline) {
+        item.timeline.forEach(segment => {
+          const productivity = segment.productivity?.toLowerCase() || 'away';
+          switch (productivity) {
+            case 'core productive': totalCoreProductive++; break;
+            case 'productive': totalProductive++; break;
+            case 'unproductive': totalUnproductive++; break;
+            case 'idle': totalIdle++; break;
+            case 'away': totalAway++; break;
+          }
+        });
+      }
+    });
+
+    const totalSegments = totalCoreProductive + totalProductive + totalUnproductive + totalIdle + totalAway;
+
+    textContent += `Total Employees             : ${data.length.toString().padStart(6)}\n`;
+    textContent += `Total Time Segments         : ${totalSegments.toString().padStart(6)}\n`;
+    textContent += `Core Productive Segments    : ${totalCoreProductive.toString().padStart(6)} (${totalSegments > 0 ? ((totalCoreProductive / totalSegments) * 100).toFixed(1) : '0.0'}%)\n`;
+    textContent += `Productive Segments         : ${totalProductive.toString().padStart(6)} (${totalSegments > 0 ? ((totalProductive / totalSegments) * 100).toFixed(1) : '0.0'}%)\n`;
+    textContent += `Unproductive Segments       : ${totalUnproductive.toString().padStart(6)} (${totalSegments > 0 ? ((totalUnproductive / totalSegments) * 100).toFixed(1) : '0.0'}%)\n`;
+    textContent += `Idle Segments               : ${totalIdle.toString().padStart(6)} (${totalSegments > 0 ? ((totalIdle / totalSegments) * 100).toFixed(1) : '0.0'}%)\n`;
+    textContent += `Away Segments               : ${totalAway.toString().padStart(6)} (${totalSegments > 0 ? ((totalAway / totalSegments) * 100).toFixed(1) : '0.0'}%)\n`;
+  }
+
+  textContent += `${separator}\n`;
+  textContent += `LEGEND:\n`;
+  textContent += `■ = Core Productive    ▓ = Productive    ▒ = Unproductive    ░ = Idle    · = Away\n`;
+  textContent += `${separator}\n`;
+  textContent += `End of Report\n`;
+  textContent += `${separator}`;
+
+  return textContent;
+}
+
+// Helper methods for activity timeline export
+
+private getProductivityDisplayText(productivity: string): string {
+  const productivityMap = {
+    'core productive': 'Core Productive',
+    'productive': 'Productive',
+    'unproductive': 'Unproductive',
+    'idle': 'Idle',
+    'away': 'Away',
+  };
+  return productivityMap[productivity?.toLowerCase()] || 'Away';
+}
+
+private getProductivitySymbol(productivity: string): string {
+  const symbolMap = {
+    'core productive': '■',
+    'productive': '▓',
+    'unproductive': '▒',
+    'idle': '░',
+    'away': '·',
+  };
+  return symbolMap[productivity?.toLowerCase()] || '·';
+}
+
+private getHourSummary(hourSegments: any[]): string {
+  const counts = {
+    'core productive': 0,
+    'productive': 0,
+    'unproductive': 0,
+    'idle': 0,
+    'away': 0,
+  };
+
+  hourSegments.forEach(segment => {
+    const productivity = segment.productivity?.toLowerCase() || 'away';
+    if (counts.hasOwnProperty(productivity)) {
+      counts[productivity]++;
+    }
+  });
+
+  // Find the most common productivity status for this hour
+  const maxCount = Math.max(...Object.values(counts));
+  const dominantStatus = Object.keys(counts).find(key => counts[key] === maxCount);
+  
+  return this.getProductivityDisplayText(dominantStatus);
+}
+  private getStatusDisplayText(status: string): string {
+    const statusMap = {
+      fullDay: 'Full Day',
+      halfDay: 'Half Day',
+      absent: 'Absent',
+      holiday: 'Holiday',
+    };
+    return statusMap[status] || 'Unknown';
+  }
+
+  private getDateHeaders(data: any[]): string[] {
+    if (!data || data.length === 0) return [];
+
+    const dateHeaders = [];
+    let index = 1;
+
+    while (data[0][`date_${index}`]) {
+      const dateStr = data[0][`date_${index}`];
+      // Format date for header (e.g., "Jun 1", "Jun 2")
+      try {
+        const date = new Date(dateStr);
+        const formatted = date.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+        });
+        dateHeaders.push(formatted);
+      } catch {
+        dateHeaders.push(dateStr);
+      }
+      index++;
+    }
+
+    return dateHeaders;
+  }
+
+private async generateAttendanceCSV(
+  data: any[],
+  startDate: string,
+  endDate: string,
+): Promise<string> {
+  const dateHeaders = this.getDateHeaders(data);
+  const headers = [
+    'Employee Name',
+    'Total Work Days (excluding holidays)',
+    'Holidays',
+    ...dateHeaders,
+  ];
+
+  let csvContent = headers.join(',') + '\n';
+
+  data.forEach((item) => {
+    const row = [
+      `"${item.name || 'N/A'}"`,
+      `"${item.totalWorkDays || 0}"`,
+      `"${item.holidays || 0}"`,
+    ];
+
+    // Add status for each date
+    let index = 1;
+    while (item[`status_${index}`]) {
+      row.push(`"${item[`status_${index}`] || 'N/A'}"`);
+      index++;
+    }
+
+    csvContent += row.join(',') + '\n';
+  });
+
+  // Add summary row
+  csvContent += '\n';
+  csvContent += '"SUMMARY:"\n';
+  csvContent += `"Total Employees","${data.length}"\n`;
+  csvContent += '"NOTE: Total Work Days exclude holidays"\n';
+
+  return csvContent;
+}
+
+private async generateAttendanceExcel(
+  data: any[],
+  startDate: string,
+  endDate: string,
+): Promise<Buffer> {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Attendance Report');
+
+  // Add title
+  const dateRange = `${this.formatDate(startDate)} to ${this.formatDate(endDate)}`;
+  worksheet.mergeCells(
+    'A1:' + this.getColumnLetter(3 + this.getDateHeaders(data).length) + '1',
+  );
+  const titleCell = worksheet.getCell('A1');
+  titleCell.value = `Attendance Report - ${dateRange}`;
+  titleCell.font = { bold: true, size: 16 };
+  titleCell.alignment = { horizontal: 'center' };
+
+  // Add headers
+  const dateHeaders = this.getDateHeaders(data);
+  const headers = [
+    'Employee Name',
+    'Total Work Days (excluding holidays)',
+    'Holidays',
+    ...dateHeaders,
+  ];
+  const headerRow = worksheet.addRow(headers);
+
+  headerRow.eachCell((cell) => {
+    cell.font = { bold: true };
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' },
+    };
+    cell.border = {
+      top: { style: 'thin' },
+      left: { style: 'thin' },
+      bottom: { style: 'thin' },
+      right: { style: 'thin' },
+    };
+  });
+
+  // Add data rows
+  data.forEach((item) => {
+    const rowData = [
+      item.name || 'N/A',
+      item.totalWorkDays || 0,
+      item.holidays || 0,
+    ];
+
+    // Add status for each date
+    let index = 1;
+    while (item[`status_${index}`]) {
+      rowData.push(item[`status_${index}`] || 'N/A');
+      index++;
+    }
+
+    const row = worksheet.addRow(rowData);
+
+    row.eachCell((cell) => {
+      cell.border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' },
+      };
+    });
+  });
+
+  // Add empty row
+  worksheet.addRow([]);
+
+  // Add summary
+  const summaryRow = worksheet.addRow(['SUMMARY', `Total Employees: ${data.length}`]);
+  summaryRow.getCell(1).font = { bold: true };
+  
+  const noteRow = worksheet.addRow(['NOTE:', 'Total Work Days exclude holidays']);
+  noteRow.getCell(1).font = { bold: true };
+
+  // Auto-fit columns
+  worksheet.columns.forEach((column) => {
+    column.width = 15;
+  });
+
+  return (await workbook.xlsx.writeBuffer()) as Buffer;
+}
+
+  private async generateAttendancePDF(
+    data: any[],
+    startDate: string,
+    endDate: string,
+  ): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      try {
+        const doc = new PDFDocument({ margin: 30, layout: 'landscape' }); // Changed to landscape for better space
+        const chunks: Buffer[] = [];
+
+        doc.on('data', (chunk) => chunks.push(chunk));
+        doc.on('end', () => resolve(Buffer.concat(chunks)));
+
+        const dateRange = `${this.formatDate(startDate)} to ${this.formatDate(endDate)}`;
+
+        // Add title
+        doc
+          .fontSize(18)
+          .font('Helvetica-Bold')
+          .text('Attendance Report', 50, 50);
+        doc.fontSize(12).font('Helvetica').text(`Period: ${dateRange}`, 50, 75);
+
+        const startY = 110;
+        const dateHeaders = this.getDateHeaders(data);
+        const headers = [
+          'Name',
+          'Work Days',
+          'Holidays',
+          ...dateHeaders.map((h) => h.substring(0, 8)), // Increase character limit
+        ];
+
+        // Calculate column widths dynamically based on content and available space
+        const pageWidth = doc.page.width - 100; // Account for margins (landscape mode gives more width)
+        const minNameWidth = 100;
+        const minNumberWidth = 45;
+        const minDateWidth = 35;
+
+        // Calculate required width for name column based on longest name
+        const maxNameLength = Math.max(
+          ...data.map((item) => (item.name || 'N/A').length),
+          10, // minimum
+        );
+        const nameWidth = Math.max(
+          minNameWidth,
+          Math.min(maxNameLength * 6, 150),
+        ); // 6px per char, max 150px
+
+        // Calculate available width for date columns
+        const fixedColumnsWidth = nameWidth + 2 * minNumberWidth; // Name + Work Days + Holidays
+        const availableForDates = pageWidth - fixedColumnsWidth;
+        const dateColumnWidth = Math.max(
+          minDateWidth,
+          availableForDates / Math.max(dateHeaders.length, 1),
+        );
+
+        const columnWidths = [
+          nameWidth,
+          minNumberWidth,
+          minNumberWidth,
+          ...dateHeaders.map(() => dateColumnWidth),
+        ];
+
+        let currentY = startY;
+
+        // Draw header row with better spacing
+        doc.fontSize(9).font('Helvetica-Bold'); // Reduced font size for headers
+        let currentX = 50;
+        headers.forEach((header, index) => {
+          // Draw border
+          doc.rect(currentX, currentY, columnWidths[index], 30).stroke();
+
+          // Add text with proper alignment and word wrapping
+          doc.text(header, currentX + 3, currentY + 8, {
+            width: columnWidths[index] - 6,
+            align: index === 0 ? 'left' : 'center',
+            ellipsis: true,
+          });
+          currentX += columnWidths[index];
+        });
+
+        currentY += 30;
+
+        // Draw data rows with improved spacing
+        doc.fontSize(8).font('Helvetica'); // Smaller font for data
+        data.forEach((item) => {
+          currentX = 50;
+
+          // Check if we need a new page
+          if (currentY > doc.page.height - 100) {
+            doc.addPage({ layout: 'landscape' });
+            currentY = 50;
+
+            // Redraw headers on new page
+            doc.fontSize(9).font('Helvetica-Bold');
+            let headerX = 50;
+            headers.forEach((header, index) => {
+              doc.rect(headerX, currentY, columnWidths[index], 30).stroke();
+              doc.text(header, headerX + 3, currentY + 8, {
+                width: columnWidths[index] - 6,
+                align: index === 0 ? 'left' : 'center',
+                ellipsis: true,
+              });
+              headerX += columnWidths[index];
+            });
+            currentY += 30;
+            doc.fontSize(8).font('Helvetica');
+          }
+
+          const rowData = [
+            (item.name || 'N/A').substring(0, 20), // Limit name length
+            (item.totalWorkDays || 0).toString(),
+            (item.holidays || 0).toString(),
+          ];
+
+          // Add status for each date
+          let index = 1;
+          while (item[`status_${index}`]) {
+            const status = item[`status_${index}`] || 'N/A';
+            // Use shorter abbreviations for PDF
+            const shortStatus =
+              status === 'Full Day'
+                ? 'FD'
+                : status === 'Half Day'
+                  ? 'HD'
+                  : status === 'Holiday'
+                    ? 'HOL'
+                    : status === 'Absent'
+                      ? 'ABS'
+                      : 'N/A';
+            rowData.push(shortStatus);
+            index++;
+          }
+
+          rowData.forEach((cellData, index) => {
+            // Draw border
+            doc.rect(currentX, currentY, columnWidths[index], 25).stroke();
+
+            // Add text with proper alignment
+            doc.text(String(cellData), currentX + 3, currentY + 8, {
+              width: columnWidths[index] - 6,
+              align: index === 0 ? 'left' : 'center',
+              ellipsis: true,
+            });
+            currentX += columnWidths[index];
+          });
+
+          currentY += 25;
+        });
+
+        // Add summary
+        currentY += 20;
+        doc
+          .fontSize(12)
+          .font('Helvetica-Bold')
+          .text(`Total Employees: ${data.length}`, 50, currentY);
+
+        // Add legend
+        currentY += 30;
+        doc.text('Legend:', 50, currentY);
+        currentY += 15;
+        doc.fontSize(10).font('Helvetica');
+        doc.text(
+          'FD = Full Day, HD = Half Day, HOL = Holiday, ABS = Absent',
+          50,
+          currentY,
+        );
+
+        doc.end();
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+private generateAttendanceText(
+  data: any[],
+  startDate: string,
+  endDate: string,
+): string {
+  const dateRange = `${this.formatDate(startDate)} to ${this.formatDate(endDate)}`;
+  const reportTitle = 'ATTENDANCE REPORT';
+  const separator = '='.repeat(100);
+  const subSeparator = '-'.repeat(80);
+
+  let textContent = '';
+
+  // Header section
+  textContent += `${separator}\n`;
+  textContent += `${' '.repeat((100 - reportTitle.length) / 2)}${reportTitle}\n`;
+  textContent += `${separator}\n`;
+  textContent += `Report Period: ${dateRange}\n`;
+  textContent += `Generated: ${new Date().toLocaleString('en-US', {
+    dateStyle: 'full',
+    timeStyle: 'short',
+  })}\n`;
+  textContent += `Total Employees: ${data.length}\n`;
+  textContent += `${separator}\n\n`;
+
+  // Employee data section
+  if (data.length === 0) {
+    textContent += `No attendance data found for the specified period.\n`;
+  } else {
+    data.forEach((item, index) => {
+      textContent += `EMPLOYEE ${(index + 1).toString().padStart(3, '0')}\n`;
+      textContent += `${subSeparator}\n`;
+      textContent += `Name              : ${item.name || 'N/A'}\n`;
+      textContent += `Total Work Days   : ${item.totalWorkDays || 0} (excluding holidays)\n`; // Added clarification
+      textContent += `Holidays          : ${item.holidays || 0}\n`;
+
+      // Add daily attendance
+      textContent += `Daily Attendance  :\n`;
+      let index_inner = 1;
+      while (item[`date_${index_inner}`]) {
+        const date = item[`date_${index_inner}`];
+        const status = item[`status_${index_inner}`] || 'N/A';
+        textContent += `  ${date.padEnd(12)} : ${status}\n`;
+        index_inner++;
+      }
+
+      textContent += `${subSeparator}\n\n`;
+    });
+  }
+
+  // Summary section with corrected calculations
+  textContent += `${separator}\n`;
+  textContent += `SUMMARY\n`;
+  textContent += `${separator}\n`;
+
+  if (data.length > 0) {
+    let totalFullDays = 0;
+    let totalHalfDays = 0;
+    let totalAbsent = 0;
+    let totalHolidays = 0;
+    let totalWorkDaysSum = 0;
+    let totalHolidaysSum = 0;
+
+    data.forEach((item) => {
+      totalWorkDaysSum += item.totalWorkDays || 0;
+      totalHolidaysSum += item.holidays || 0;
+      
+      let index = 1;
+      while (item[`status_${index}`]) {
+        const status = item[`status_${index}`];
+        if (status === 'Full Day') totalFullDays++;
+        else if (status === 'Half Day') totalHalfDays++;
+        else if (status === 'Absent') totalAbsent++;
+        else if (status === 'Holiday') totalHolidays++;
+        index++;
+      }
+    });
+
+    textContent += `Total Full Day Attendance     : ${totalFullDays.toString().padStart(6)}\n`;
+    textContent += `Total Half Day Attendance     : ${totalHalfDays.toString().padStart(6)}\n`;
+    textContent += `Total Absences                : ${totalAbsent.toString().padStart(6)}\n`;
+    textContent += `Total Holiday Records         : ${totalHolidays.toString().padStart(6)}\n`;
+    textContent += `${subSeparator}\n`;
+    textContent += `Total Employees               : ${data.length.toString().padStart(6)}\n`;
+    textContent += `Average Work Days per Employee: ${(totalWorkDaysSum / data.length).toFixed(1).padStart(6)}\n`;
+    textContent += `Average Holidays per Employee : ${(totalHolidaysSum / data.length).toFixed(1).padStart(6)}\n`;
+  }
+
+  textContent += `${separator}\n`;
+  textContent += `NOTE: Total Work Days = Total Days in Period - Holidays\n`;
+  textContent += `${separator}\n`;
+  textContent += `End of Report\n`;
+  textContent += `${separator}`;
+
+  return textContent;
+}
+
+  // Helper method to convert column number to letter (for Excel)
+  private getColumnLetter(columnNumber: number): string {
+    let letter = '';
+    while (columnNumber > 0) {
+      const remainder = (columnNumber - 1) % 26;
+      letter = String.fromCharCode(65 + remainder) + letter;
+      columnNumber = Math.floor((columnNumber - 1) / 26);
+    }
+    return letter;
+  }
   private generateText(data: any[], date: string): string {
     const formattedDate = this.formatDate(date);
     const reportTitle = 'TIMESHEET REPORT';
@@ -2138,15 +3267,8 @@ ${sanitizedOrgName} Team
     const attendanceData: AttendanceDto[] = [];
 
     for (const device of devices) {
-      // const testUserActivite = await this.userActivityRepository.find({where:{user_uid:device.device_uid,timestamp:Between(fromDate,toDate),organization_id:device.organization_uid}})
-      // console.log('testUserActivite', testUserActivite);
       const userActivities = await this.userActivityRepository.find({
         where: {
-          // organization_id: device.organization_uid,
-
-          // NOTE: here the organizationId is different in user_activity table then in device table for the user, I think due to
-          //  rust application dev_config is alwasy set to same organizationId that's why it's giving the different organizationId here.
-          // fix this issue later on.
           timestamp: Between(fromDate, toDate),
           user_uid: device.device_uid,
         },
@@ -2155,8 +3277,8 @@ ${sanitizedOrgName} Team
       console.log('userActivities', userActivities);
 
       const recordsOfWeek: any[] = [];
-
       const days = this.getDateRange(fromDate, toDate);
+      let totalHolidays = 0; // Track holidays
 
       for (const day of days) {
         const activitiesOfDay = userActivities.filter(
@@ -2166,9 +3288,7 @@ ${sanitizedOrgName} Team
 
         let status = 'absent';
         console.log(activitiesOfDay.length);
-        // activitiesOfDay.length && activitiesOfDay.forEach(activity =>{
-        //   console.log("Name: ",activity.device_user_name,activity.page_title);
-        // });
+
         if (activitiesOfDay.length > 0) {
           const firstActivity = activitiesOfDay[0];
           const lastActivity = activitiesOfDay[activitiesOfDay.length - 1];
@@ -2199,6 +3319,7 @@ ${sanitizedOrgName} Team
           const isHoliday = this.isHoliday(day.start);
           if (isHoliday) {
             status = 'holiday';
+            totalHolidays++; // Increment holiday counter
           }
         }
 
@@ -2212,14 +3333,16 @@ ${sanitizedOrgName} Team
         });
       }
 
+      // Calculate total work days correctly: total days - holidays
+      const totalDays = days.length;
+      const actualWorkDays = totalDays - totalHolidays;
+
       const attendanceDto: AttendanceDto = {
         device_id: device.device_uid,
         user_name: device.user_name,
         user_id: device.user_uid,
-        totalworkdays: days.length,
-        holiday: recordsOfWeek.filter(
-          (record) => record.DateStatus === 'holiday',
-        ).length,
+        totalworkdays: actualWorkDays, // Fixed calculation
+        holiday: totalHolidays, // Use calculated holidays
         recordsofWeek: recordsOfWeek,
       };
 
