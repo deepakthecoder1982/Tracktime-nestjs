@@ -198,7 +198,7 @@ async getAdminProfileData(adminId: string): Promise<any> {
       avatar: admin.avatar || null,
       joinedDate: admin.createdAt.toISOString().split('T')[0],
       lastUpdated: admin.updatedAt.toISOString().split('T')[0],
-      password: '••••••••••••', // Never send actual password
+      password: admin.password || '••••••••••••', // Never send actual password
     };
 
     // Company information
