@@ -38,6 +38,7 @@ import { ConfigService } from '@nestjs/config';
 import { organizationAdminService } from './organisation/OrganizationAdmin.service';
 import { OrganizationAdminController } from './organisation/OrgnaizationRegister.controller';
 import { CreateOrganizationAdmin } from './organisation/OrganizationAdmin.entity';
+import { WasabiUploadService } from './organisation/wasabi-upload.service';
 import { OnbaordingAuthMiddleware } from './middleware/OnboardingAuth.middleware'; 
 import { CalculatedLogic } from './organisation/calculatedLogic.entity';
 import { TrackingWeekdays } from './organisation/tracking_weekdays.entity';
@@ -45,6 +46,9 @@ import { TrackingHolidays } from './organisation/tracking_holidays.entity';
 import { ScreenshotSettings } from './organisation/screenshot_settings.entity';
 import { PolicyTeams } from './organisation/policy_team.entity';
 import { PolicyUsers } from './organisation/policy_user.entity';
+import { InstallerService } from './installer/installer.service';
+import { BuildStatusModule } from './build-status/build-status.module';
+import { NotificationModule } from './notifications/notification.module';
 
 
 @Module({
@@ -82,6 +86,8 @@ import { PolicyUsers } from './organisation/policy_user.entity';
       secret: 'crazy-secret',
       signOptions: { expiresIn: '24h' },
     }),
+    BuildStatusModule,
+    NotificationModule,
   ],
   controllers: [
     UserController,
@@ -97,6 +103,8 @@ import { PolicyUsers } from './organisation/policy_user.entity';
     teamAndTeamMemberService,
     ConfigService,
     organizationAdminService,
+    WasabiUploadService,
+    InstallerService,
   ],
 })
 

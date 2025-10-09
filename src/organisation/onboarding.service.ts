@@ -33,6 +33,7 @@ import { TrackingHolidays } from './tracking_holidays.entity';
 import { TrackingWeekdays } from './tracking_weekdays.entity';
 import { ConfigurationServicePlaceholders } from 'aws-sdk/lib/config_service_placeholders';
 import { organizationAdminService } from './OrganizationAdmin.service';
+import { CreateOrganizationAdmin } from './OrganizationAdmin.entity';
 import { ProductivitySettingEntity } from './prodsetting.entity';
 import { Resend } from 'resend';
 import * as ExcelJS from 'exceljs';
@@ -135,7 +136,7 @@ const weekdayData = [
 
 // You can then save this `weekdayData` into the database using your existing repository methods.
 
-export let DeployFlaskBaseApi = 'https://python-url-classification.onrender.com'; 
+export let DeployFlaskBaseApi = 'https://python-url-classification-bs67.onrender.com'; 
 export let LocalFlaskBaseApi = 'http://127.0.0.1:5000';
 // DeployFlaskBaseApi=LocalFlaskBaseApi;
 type UpdateConfigType = DeepPartial<User['config']>;
@@ -179,6 +180,8 @@ export class OnboardingService {
     private TrackProdSettingsRepository: Repository<ProductivitySettingEntity>,
     @InjectRepository(CalculatedLogic)
     private calculatedLogicRepository: Repository<CalculatedLogic>,
+    @InjectRepository(CreateOrganizationAdmin)
+    private organizationAdminRepository: Repository<CreateOrganizationAdmin>,
   ) {
     this.s3 = new S3({
       endpoint: this.ConfigureService.get<string>('WASABI_ENDPOINT'),
@@ -1960,6 +1963,33 @@ private generateAttendanceText(
       return null;
     }
   }
+
+  /**
+   * Update organization logo with Wasabi URL
+   */
+  async updateOrganizationLogo(
+    organizationId: string,
+    logoUrl: string,
+  ): Promise<boolean> {
+    try {
+      const organization = await this.organizationRepository.findOne({
+        where: { id: organizationId },
+      });
+
+      if (!organization) {
+        throw new NotFoundException('Organization not found');
+      }
+
+      organization.logo = logoUrl;
+      await this.organizationRepository.save(organization);
+
+      this.logger.log(`✅ Organization logo updated: ${organizationId} -> ${logoUrl}`);
+      return true;
+    } catch (error) {
+      this.logger.error(`❌ Error updating organization logo: ${error.message}`);
+      throw new BadRequestException(`Error updating organization logo: ${error.message}`);
+    }
+  }
   async fetchScreenShot(): Promise<any[]> {
     // const bucketName = process.env.WASABI_BUCKET_NAME;
     const bucketName = this.ConfigureService.get<string>('WASABI_BUCKET_NAME');
@@ -2033,14 +2063,34 @@ private generateAttendanceText(
     return savedDesktopApp;
   }
 
-  async findOrganization(name: string): Promise<Organization> {
+  async findOrganization(name: string, organizationAdminId?: string): Promise<Organization> {
+    // If organizationAdminId is provided, check for organization with same name 
+    // that belongs to the same admin (to prevent duplicate orgs for same admin)
+    if (organizationAdminId) {
+      // First find the admin to get their organization ID
+      const admin = await this.organizationAdminRepository.findOne({
+        where: { id: organizationAdminId }
+      });
+      
+      if (!admin || !admin.OrganizationId) {
+        return null;
+      }
+      
+      // Check if organization with same name exists and belongs to this admin
+      let isOrganization = await this.organizationRepository.findOne({
+        where: { 
+          name,
+          id: admin.OrganizationId
+        }
+      });
+      
+      return isOrganization;
+    }
+    
+    // Fallback to original logic if no admin ID provided
     let isOrganization = await this.organizationRepository.findOne({
       where: { name },
     });
-    // if(isOrganization) {
-    //   // isOrganization = await this.organizationAdminService.findOrganization(isOrganization.id)
-    //   // return isOrganization.id;
-    // }
 
     return isOrganization;
   }
@@ -2831,26 +2881,32 @@ async checkDeviceIdExist(
 ): Promise<string> {
   try {
     const cleanMacAddress = mac_address && mac_address.trim() !== '' ? mac_address : null;
+    const cleanDeviceUserName = device_user_name && device_user_name.trim() !== '' ? device_user_name.trim().toLowerCase() : null;
     
-    if (!cleanMacAddress) {
+    if (!cleanMacAddress || !cleanDeviceUserName) {
+      this.logger.warn('Missing mac_address or device_user_name');
       return null;
     }
 
+    // Search by mac_address
     const isExist = await this.devicesRepository.findOne({
       where: { mac_address: cleanMacAddress },
     });
 
-    console.log('mac_address', cleanMacAddress);
-    console.log('device-user-name', device_user_name);
-    console.log('isExist', isExist);
+    this.logger.debug(`Checking device - mac_address: ${cleanMacAddress}, device_user_name: ${device_user_name}`);
+    this.logger.debug(`Found device: ${JSON.stringify(isExist)}`);
 
-    if (isExist?.user_name && device_user_name.toLowerCase()) {
+    // Verify both mac_address and device_name match
+    if (isExist && isExist.device_name && 
+        isExist.device_name.toLowerCase() === cleanDeviceUserName) {
+      this.logger.log(`Device found with matching mac_address and device_name: ${isExist.device_uid}`);
       return isExist.device_uid;
     }
 
+    this.logger.warn('Device not found or device_name mismatch');
     return null;
   } catch (err) {
-    console.log(err?.message);
+    this.logger.error(`Error in checkDeviceIdExist: ${err?.message}`, err?.stack);
     return null;
   }
 }
@@ -2864,6 +2920,7 @@ async checkDeviceIdExistWithDeviceId(
     // Clean the input parameters
     const cleanMacAddress = mac_address && mac_address.trim() !== '' ? mac_address : null;
     const cleanDeviceId = device_id && device_id.trim() !== '' ? device_id : null;
+    const cleanDeviceUserName = device_user_name && device_user_name.trim() !== '' ? device_user_name.trim() : null;
 
     // Build the where conditions dynamically
     const whereConditions: any[] = [];
@@ -2878,6 +2935,7 @@ async checkDeviceIdExistWithDeviceId(
 
     // If no valid conditions, return null
     if (whereConditions.length === 0) {
+      this.logger.warn('No valid conditions to search for device');
       return null;
     }
 
@@ -2886,7 +2944,15 @@ async checkDeviceIdExistWithDeviceId(
       where: whereConditions,
     });
 
-    // If device found by device_id but no mac_address, update it
+    if (!existingDevice) {
+      this.logger.warn(`No device found with provided conditions`);
+      return null;
+    }
+
+    // Track if updates are needed
+    let needsUpdate = false;
+
+    // Update mac_address if device found by device_id but no mac_address
     if (existingDevice && !existingDevice.mac_address && cleanMacAddress) {
       // Check if another device already has this mac_address
       const conflictingDevice = await this.devicesRepository.findOne({
@@ -2895,12 +2961,27 @@ async checkDeviceIdExistWithDeviceId(
 
       // Remove conflicting mac_address if found
       if (conflictingDevice && conflictingDevice.device_uid !== existingDevice.device_uid) {
+        this.logger.warn(`Removing conflicting mac_address from device: ${conflictingDevice.device_uid}`);
         conflictingDevice.mac_address = null;
         await this.devicesRepository.save(conflictingDevice);
       }
 
       existingDevice.mac_address = cleanMacAddress;
+      needsUpdate = true;
+      this.logger.log(`Updating mac_address for device: ${existingDevice.device_uid}`);
+    }
+
+    // Update device_name if provided and different
+    if (cleanDeviceUserName && existingDevice.device_name !== cleanDeviceUserName) {
+      existingDevice.device_name = cleanDeviceUserName;
+      needsUpdate = true;
+      this.logger.log(`Updating device_name to: ${cleanDeviceUserName} for device: ${existingDevice.device_uid}`);
+    }
+
+    // Save updates if any
+    if (needsUpdate) {
       await this.devicesRepository.save(existingDevice);
+      this.logger.log(`Device updated successfully: ${existingDevice.device_uid}`);
     }
 
     return existingDevice ? existingDevice.device_uid : null;
@@ -3038,8 +3119,20 @@ async getUserConfig(deviceId: string, organizationId: string): Promise<any> {
       throw new BadRequestException(`Error:- ${error}`);
     }
   }
-  async ValidateUserByGmail(email: string) {
+  async ValidateUserByGmail(email: string, organizationId?: string) {
     try {
+      // If organizationId is provided, check for user with same email within the same organization
+      if (organizationId) {
+        let user = await this.userRepository.findOne({ 
+          where: { 
+            email: email,
+            organizationId: organizationId 
+          } 
+        });
+        return user;
+      }
+      
+      // Fallback to original logic - check globally (for backward compatibility)
       let user = await this.userRepository.findOne({ where: { email: email } });
       return user;
     } catch (err) {
@@ -3955,6 +4048,195 @@ async getUserConfig(deviceId: string, organizationId: string): Promise<any> {
     console.log('Screenshot', screenshotInterval);
 
     return screenshotInterval?.blurScreenshotsStatus || false;
+  }
+
+  // Missing methods implementation
+  async findFilteredDevices(organizationId: string): Promise<Devices[]> {
+    try {
+      console.log('Finding filtered devices for organization:', organizationId);
+      
+      // Get all devices for the organization
+      const devices = await this.devicesRepository.find({
+        where: { organization_uid: organizationId },
+        order: { created_at: 'DESC' },
+      });
+
+      console.log(`Found ${devices.length} total devices for organization ${organizationId}`);
+
+      // Filter devices based on criteria:
+      // 1. Devices with user_uid (not null)
+      // 2. Devices with activity/tracking data
+      const filteredDevices = [];
+      
+      for (const device of devices) {
+        let shouldInclude = false;
+        
+        // Check if device has user_uid
+        if (device.user_uid && device.user_uid.trim() !== '') {
+          shouldInclude = true;
+          console.log(`Device ${device.device_uid} included - has user_uid: ${device.user_uid}`);
+        } else {
+          // Check if device has activity/tracking data
+          // Activities are linked to devices via user_uid = device_uid
+          const activityCount = await this.userActivityRepository.count({
+            where: { user_uid: device.device_uid }
+          });
+          
+          if (activityCount > 0) {
+            shouldInclude = true;
+            console.log(`Device ${device.device_uid} included - has ${activityCount} activity records`);
+          } else {
+            console.log(`Device ${device.device_uid} excluded - no user_uid and no activity data`);
+          }
+        }
+        
+        if (shouldInclude) {
+          filteredDevices.push(device);
+        }
+      }
+
+      console.log(`Filtered to ${filteredDevices.length} devices for organization ${organizationId}`);
+      return filteredDevices;
+    } catch (error) {
+      console.error('Error in findFilteredDevices:', error);
+      throw new Error('Failed to fetch filtered devices');
+    }
+  }
+
+  async getUsersForDownload(organization: string): Promise<User[]> {
+    try {
+      console.log('Getting users for download for organization:', organization);
+      
+      const users = await this.userRepository.find({
+        where: { organizationId: organization },
+        order: { created_at: 'DESC' },
+        relations: ['team'],
+      });
+
+      console.log(`Found ${users.length} users for download for organization ${organization}`);
+      return users;
+    } catch (error) {
+      console.error('Error in getUsersForDownload:', error);
+      throw new Error('Failed to fetch users for download');
+    }
+  }
+
+  async findUserByUuid(userUuid: string, organization: string): Promise<User> {
+    try {
+      console.log('Finding user by UUID:', userUuid, 'for organization:', organization);
+      
+      const user = await this.userRepository.findOne({
+        where: { 
+          userUUID: userUuid,
+          organizationId: organization 
+        },
+        relations: ['team'],
+      });
+
+      console.log('User find by UUID result:', user ? 'Found' : 'Not found');
+      return user;
+    } catch (error) {
+      console.error('Error in findUserByUuid:', error);
+      throw new Error('Failed to find user by UUID');
+    }
+  }
+
+  async findUserByEmail(email: string, organization: string): Promise<User> {
+    try {
+      console.log('Finding user by email:', email, 'for organization:', organization);
+      
+      const user = await this.userRepository.findOne({
+        where: { 
+          email: email,
+          organizationId: organization 
+        },
+        relations: ['team'],
+      });
+
+      console.log('User find by email result:', user ? 'Found' : 'Not found');
+      return user;
+    } catch (error) {
+      console.error('Error in findUserByEmail:', error);
+      throw new Error('Failed to find user by email');
+    }
+  }
+
+  async findDeviceByUserId(userId: string, organization: string): Promise<Devices> {
+    try {
+      console.log('Finding device by user ID:', userId, 'for organization:', organization);
+      
+      const device = await this.devicesRepository.findOne({
+        where: { 
+          user_uid: userId,
+          organization_uid: organization 
+        },
+        order: { created_at: 'DESC' },
+      });
+
+      console.log('Device find by user ID result:', device ? 'Found' : 'Not found');
+      return device;
+    } catch (error) {
+      console.error('Error in findDeviceByUserId:', error);
+      throw new Error('Failed to find device by user ID');
+    }
+  }
+
+  async createUser(userData: {
+    user_name: string;
+    email: string;
+    organizationId: string;
+    trackTimeStatus: TrackTimeStatus;
+  }): Promise<User> {
+    try {
+      console.log('Creating new user:', userData);
+      
+      const newUser = this.userRepository.create({
+        userName: userData.user_name,
+        email: userData.email,
+        organizationId: userData.organizationId,
+        config: {
+          trackTimeStatus: userData.trackTimeStatus
+        }
+      });
+
+      const savedUser = await this.userRepository.save(newUser);
+      console.log('User created successfully:', savedUser.userUUID);
+      
+      return savedUser;
+    } catch (error) {
+      console.error('Error in createUser:', error);
+      throw new Error('Failed to create user');
+    }
+  }
+
+  async createDevice(deviceData: {
+    device_name: string;
+    organization_uid: string;
+    user_name: string;
+    user_uid?: string;
+    mac_address?: string;
+    config?: any;
+  }): Promise<Devices> {
+    try {
+      console.log('Creating new device:', deviceData);
+      
+      const newDevice = this.devicesRepository.create({
+        device_name: deviceData.device_name,
+        organization_uid: deviceData.organization_uid,
+        user_name: deviceData.user_name,
+        user_uid: deviceData.user_uid || null,
+        mac_address: deviceData.mac_address || null,
+        config: deviceData.config || null
+      });
+
+      const savedDevice = await this.devicesRepository.save(newDevice);
+      console.log('Device created successfully:', savedDevice.device_uid);
+      
+      return savedDevice;
+    } catch (error) {
+      console.error('Error in createDevice:', error);
+      throw new Error('Failed to create device');
+    }
   }
 }
  
