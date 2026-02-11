@@ -34,6 +34,7 @@ export class UpdateController {
     this.logger.log(`Version check request received for OS: ${os}`);
     
     const updateInfo = await this.updateService.checkForUpdates(os);
+    this.logger.log(`Update info for OS ${os}: ${JSON.stringify(updateInfo)}`);
     
     if (!updateInfo) {
       return {
