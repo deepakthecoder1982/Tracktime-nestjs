@@ -3510,6 +3510,7 @@ ${sanitizedOrgName} Team
     date: string,
   ): Promise<any> {
     try {
+      console.log(this.flaskBaseApiUrl)
       const response = await axios.get(`${this.flaskBaseApiUrl}?date=${date}`, {
         headers: {
           'Content-Type': 'application/json',
