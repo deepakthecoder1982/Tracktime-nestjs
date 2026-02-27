@@ -72,17 +72,26 @@ export class OnboardingController {
     GMT: 'Europe/London',
   };
 
-  private readonly configValues = {
-    HOST_FOR_NEST:
+  private readonly appConfig = {
+    hostForNest: process.env.HOST_FOR_NEST ||
       'https://tracktime-nestjs.onrender.com/onboarding/users/configStatus',
-    HOST_FOR_GO: 'https://tracktime-go-producer.onrender.com/produce',
+    hostForGo: process.env.HOST_FOR_GO ||
+      'https://tracktime-go-producer.onrender.com/produce',
+    defaultVersion: process.env.DEFAULT_APP_VERSION || '1.0.0',
+    defaultTimeForUnpaidUser: process.env.DEFAULT_TIME_FOR_UNPAID_USER || '2',
+    defaultBlurStatus: process.env.DEFAULT_BLUR_STATUS || 'false',
+    defaultTrackTimeStatus: process.env.DEFAULT_TRACK_TIME_STATUS || 'Resume',
+    defaultIsPaid: process.env.DEFAULT_IS_PAID || 'false',
+    encryptionKey: process.env.ENCRYPTION_KEY ||
+      'an example very very secret key.',
+    encryptionIvLength: parseInt(process.env.ENCRYPTION_IV_LENGTH || '16'),
   };
   constructor(
     private readonly onboardingService: OnboardingService,
     private readonly userService: AuthService,
     private readonly organizationAdminService: organizationAdminService,
     private readonly wasabiUploadService: WasabiUploadService,
-  ) {}
+  ) { }
 
   /**
    * Format timestamp based on organization's timezone
@@ -90,6 +99,54 @@ export class OnboardingController {
    * @param organizationTimezone - Organization's timezone (PST, EST, CST, IST, GMT)
    * @returns Formatted timestamp string (without timezone abbreviation)
    */
+
+  /**
+ * Centralized method to generate device configuration
+ * This ensures consistency across all installer types
+ */
+  private generateDeviceConfig(params: {
+    deviceId: string;
+    organizationId: string;
+    timeForUnpaidUser?: string;
+    blurStatus?: string;
+    trackTimeStatus?: string;
+    isPaid?: string;
+    version?: string;
+  }): string {
+    const config = {
+      HOST_FOR_NEST: this.appConfig.hostForNest,
+      HOST_FOR_GO: this.appConfig.hostForGo,
+      device_id: params.deviceId,
+      timeForUnpaidUser: params.timeForUnpaidUser || this.appConfig.defaultTimeForUnpaidUser,
+      organizationId: params.organizationId,
+      version: params.version || this.appConfig.defaultVersion,
+      blurStatus: params.blurStatus || this.appConfig.defaultBlurStatus,
+    };
+
+    // Encrypt all values
+    const key = this.appConfig.encryptionKey;
+    const iv = Buffer.alloc(this.appConfig.encryptionIvLength, 0);
+
+    const encryptedConfig = {
+      HOST_FOR_NEST: this.encryptData(config.HOST_FOR_NEST, key, iv),
+      HOST_FOR_GO: this.encryptData(config.HOST_FOR_GO, key, iv),
+      device_id: this.encryptData(config.device_id, key, iv),
+      timeForUnpaidUser: this.encryptData(config.timeForUnpaidUser, key, iv),
+      organizationId: this.encryptData(config.organizationId, key, iv),
+      version: this.encryptData(config.version, key, iv),
+      blurStatus: this.encryptData(config.blurStatus, key, iv),
+    };
+
+    // Return formatted config string (matching Rust app format)
+    return `timeForUnpaidUser=${encryptedConfig.timeForUnpaidUser}
+version=${encryptedConfig.version}
+blurStatus=${encryptedConfig.blurStatus}
+HOST_FOR_GO=${encryptedConfig.HOST_FOR_GO}
+organizationId=${encryptedConfig.organizationId}
+device_id=${encryptedConfig.device_id}
+HOST_FOR_NEST=${encryptedConfig.HOST_FOR_NEST}`;
+  }
+
   private formatTimestampForOrganization(
     timestamp: Date | string,
     organizationTimezone: string,
@@ -136,9 +193,9 @@ export class OnboardingController {
       timestamp: activity.timestamp, // Original timestamp (for verification)
       formattedTimestamp: activity.timestamp
         ? this.formatTimestampForOrganization(
-            activity.timestamp,
-            organizationTimezone,
-          )
+          activity.timestamp,
+          organizationTimezone,
+        )
         : null, // Formatted based on org timezone
       organizationTimezone: organizationTimezone, // Include timezone info
     }));
@@ -782,9 +839,9 @@ export class OnboardingController {
             timestamp: activity.timestamp, // Original activity timestamp for verification
             formattedTimestamp: primaryTimestamp
               ? this.formatTimestampForOrganization(
-                  primaryTimestamp,
-                  organizationTimezone,
-                )
+                primaryTimestamp,
+                organizationTimezone,
+              )
               : null, // Formatted based on organization timezone using accurate timestamp
             organizationTimezone: organizationTimezone,
             ImgData: {
@@ -1048,56 +1105,56 @@ export class OnboardingController {
       // Process devices to include user information
       const processedDevices = devices
         ? devices.map((device) => {
-            const assignedUser = device.user_uid
-              ? users.find((user) => user.userUUID === device.user_uid)
-              : null;
+          const assignedUser = device.user_uid
+            ? users.find((user) => user.userUUID === device.user_uid)
+            : null;
 
-            return {
-              device_uid: device.device_uid,
-              device_name: device.device_name,
-              user_name: device.user_name,
-              user_uid: device.user_uid,
-              mac_address: device.mac_address,
-              organization_uid: device.organization_uid,
-              created_at: device.created_at,
-              updated_at: device.updated_at,
-              config: device.config,
-              // Add user details if assigned
-              assignedUser: assignedUser
-                ? {
-                    userUUID: assignedUser.userUUID,
-                    userName: assignedUser.userName,
-                    email: assignedUser.email,
-                    teamId: assignedUser.teamId,
-                  }
-                : null,
-            };
-          })
+          return {
+            device_uid: device.device_uid,
+            device_name: device.device_name,
+            user_name: device.user_name,
+            user_uid: device.user_uid,
+            mac_address: device.mac_address,
+            organization_uid: device.organization_uid,
+            created_at: device.created_at,
+            updated_at: device.updated_at,
+            config: device.config,
+            // Add user details if assigned
+            assignedUser: assignedUser
+              ? {
+                userUUID: assignedUser.userUUID,
+                userName: assignedUser.userName,
+                email: assignedUser.email,
+                teamId: assignedUser.teamId,
+              }
+              : null,
+          };
+        })
         : [];
 
       // Process users to include team information
       const processedUsers = users
         ? users.map((user) => {
-            const userTeam = teams.find((team) => team.id === user.teamId);
+          const userTeam = teams.find((team) => team.id === user.teamId);
 
-            return {
-              userUUID: user.userUUID,
-              userName: user.userName,
-              email: user.email,
-              teamId: user.teamId,
-              organizationId: user.organizationId,
-              created_at: user.created_at,
-              updated_at: user.updated_at,
-              // Add team details
-              team: userTeam
-                ? {
-                    id: userTeam.id,
-                    name: userTeam.name,
-                    organizationId: userTeam.organizationId,
-                  }
-                : null,
-            };
-          })
+          return {
+            userUUID: user.userUUID,
+            userName: user.userName,
+            email: user.email,
+            teamId: user.teamId,
+            organizationId: user.organizationId,
+            created_at: user.created_at,
+            updated_at: user.updated_at,
+            // Add team details
+            team: userTeam
+              ? {
+                id: userTeam.id,
+                name: userTeam.name,
+                organizationId: userTeam.organizationId,
+              }
+              : null,
+          };
+        })
         : [];
 
       const responseData = {
@@ -2482,39 +2539,36 @@ export class OnboardingController {
       };
 
       // Prepare configuration values (matching Rust app format - 7 fields only)
-      const configValues = {
-        HOST_FOR_NEST: this.configValues.HOST_FOR_NEST,
-        HOST_FOR_GO: this.configValues.HOST_FOR_GO,
-        device_id: deviceId,
-        timeForUnpaidUser: userConfig?.timeForUnpaidUser || '2', // Default 2 seconds for paid users, can be updated by policy
-        organizationId: organizationId,
-        version: '1.0.0',
-        blurStatus: userConfig?.blurStatus || 'false',
-      };
+      const updatedConfig = this.generateDeviceConfig({
+        deviceId,
+        organizationId,
+        timeForUnpaidUser: userConfig?.timeForUnpaidUser,
+        blurStatus: userConfig?.blurStatus,
+      });
 
-      // Encrypt all configuration values
-      const encryptedConfig = {
-        HOST_FOR_NEST: this.encryptData(configValues.HOST_FOR_NEST, key, iv),
-        HOST_FOR_GO: this.encryptData(configValues.HOST_FOR_GO, key, iv),
-        device_id: this.encryptData(configValues.device_id, key, iv),
-        timeForUnpaidUser: this.encryptData(
-          configValues.timeForUnpaidUser,
-          key,
-          iv,
-        ),
-        organizationId: this.encryptData(configValues.organizationId, key, iv),
-        version: this.encryptData(configValues.version, key, iv),
-        blurStatus: this.encryptData(configValues.blurStatus, key, iv),
-      };
+      //       // Encrypt all configuration values
+      //       const encryptedConfig = {
+      //         HOST_FOR_NEST: this.encryptData(configValues.HOST_FOR_NEST, key, iv),
+      //         HOST_FOR_GO: this.encryptData(configValues.HOST_FOR_GO, key, iv),
+      //         device_id: this.encryptData(configValues.device_id, key, iv),
+      //         timeForUnpaidUser: this.encryptData(
+      //           configValues.timeForUnpaidUser,
+      //           key,
+      //           iv,
+      //         ),
+      //         organizationId: this.encryptData(configValues.organizationId, key, iv),
+      //         version: this.encryptData(configValues.version, key, iv),
+      //         blurStatus: this.encryptData(configValues.blurStatus, key, iv),
+      //       };
 
-      // Create the complete configuration content (NO SPACES - clean format matching Rust app)
-      const updatedConfig = `timeForUnpaidUser=${encryptedConfig.timeForUnpaidUser}
-version=${encryptedConfig.version}
-blurStatus=${encryptedConfig.blurStatus}
-HOST_FOR_GO=${encryptedConfig.HOST_FOR_GO}
-organizationId=${encryptedConfig.organizationId}
-device_id=${encryptedConfig.device_id}
-HOST_FOR_NEST=${encryptedConfig.HOST_FOR_NEST}`;
+      //       // Create the complete configuration content (NO SPACES - clean format matching Rust app)
+      //       const updatedConfig = `timeForUnpaidUser=${encryptedConfig.timeForUnpaidUser}
+      // version=${encryptedConfig.version}
+      // blurStatus=${encryptedConfig.blurStatus}
+      // HOST_FOR_GO=${encryptedConfig.HOST_FOR_GO}
+      // organizationId=${encryptedConfig.organizationId}
+      // device_id=${encryptedConfig.device_id}
+      // HOST_FOR_NEST=${encryptedConfig.HOST_FOR_NEST}`;
 
       this.logger.log(
         `Generating installer package for ${operatingSystem} - Org: ${organizationId}`,
@@ -2613,10 +2667,10 @@ HOST_FOR_NEST=${encryptedConfig.HOST_FOR_NEST}`;
 
       const deviceExist = cleanDeviceId
         ? await this.onboardingService.checkDeviceIdExistWithDeviceId(
-            macAddress,
-            cleanDeviceId,
-            username,
-          )
+          macAddress,
+          cleanDeviceId,
+          username,
+        )
         : await this.onboardingService.checkDeviceIdExist(macAddress, username);
 
       this.logger.log(
@@ -2944,7 +2998,7 @@ HOST_FOR_NEST=${encryptedConfig.HOST_FOR_NEST}`;
         typeof organization === 'string'
           ? organization
           : (organization as any)._id?.toString() ||
-            (organization as any).toString();
+          (organization as any).toString();
 
       // Get user-specific settings based on user type
       let blurStatus = 'false';
@@ -2977,47 +3031,15 @@ HOST_FOR_NEST=${encryptedConfig.HOST_FOR_NEST}`;
         isPaid = 'false';
       }
 
-      const configValues = {
-        HOST_FOR_NEST: this.configValues.HOST_FOR_NEST,
-        HOST_FOR_GO: this.configValues.HOST_FOR_GO,
-        device_id: deviceId,
-        timeForUnpaidUser: '2', // Default 2 seconds, can be updated by policy
+      // ✅ USE CENTRALIZED CONFIG GENERATION
+      const updatedConfig = this.generateDeviceConfig({
+        deviceId,
         organizationId: orgId,
-        version: '1.0.0',
-        blurStatus: blurStatus,
-        trackTimeStatus: trackTimeStatus,
-        isPaid: isPaid,
-      };
+        timeForUnpaidUser:this.appConfig.defaultTimeForUnpaidUser,
+        blurStatus: blurStatus.toString(),
+        version: this.appConfig.defaultVersion,
+      });
 
-      // Encrypt all configuration values
-      const encryptedConfig = {
-        HOST_FOR_NEST: this.encryptData(configValues.HOST_FOR_NEST, key, iv),
-        HOST_FOR_GO: this.encryptData(configValues.HOST_FOR_GO, key, iv),
-        device_id: this.encryptData(configValues.device_id, key, iv),
-        timeForUnpaidUser: this.encryptData(
-          configValues.timeForUnpaidUser,
-          key,
-          iv,
-        ),
-        organizationId: this.encryptData(configValues.organizationId, key, iv),
-        version: this.encryptData(configValues.version, key, iv),
-        blurStatus: this.encryptData(configValues.blurStatus, key, iv),
-        trackTimeStatus: this.encryptData(
-          configValues.trackTimeStatus,
-          key,
-          iv,
-        ),
-        isPaid: this.encryptData(configValues.isPaid, key, iv),
-      };
-
-      // Create the complete configuration content (NO SPACES - clean format matching Rust app)
-      const updatedConfig = `timeForUnpaidUser=${encryptedConfig.timeForUnpaidUser}
-version=${encryptedConfig.version}
-blurStatus=${encryptedConfig.blurStatus}
-HOST_FOR_GO=${encryptedConfig.HOST_FOR_GO}
-organizationId=${encryptedConfig.organizationId}
-device_id=${encryptedConfig.device_id}
-HOST_FOR_NEST=${encryptedConfig.HOST_FOR_NEST}`;
 
       this.logger.log(`Config prepared successfully for ${selectedOS}`);
 
