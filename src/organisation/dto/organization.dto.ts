@@ -6,7 +6,7 @@ export class CreateOrganizationDTO {
   name: string; // Organization name
 
   @IsString()
-  @IsNotEmpty()
+  // @IsNotEmpty()
   country: string; // Organization's country
 
   @IsString()
