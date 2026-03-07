@@ -2146,7 +2146,7 @@ ${sanitizedOrgName} Team
     // });
     const organisation = new Organization();
     organisation.name = data.name.toLowerCase();
-    organisation.country = data.country;
+    organisation.country = data.timeZone;
     organisation.logo = data.logo;
     organisation.teamSize = data.teamSize;
     organisation.type = data.type;

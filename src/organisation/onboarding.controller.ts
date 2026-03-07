@@ -225,6 +225,8 @@ HOST_FOR_NEST=${encryptedConfig.HOST_FOR_NEST}`;
         ? organizationAdminId[0]
         : organizationAdminId;
 
+      console.log("createorganizationDat",createOrganizationDto);
+
       let organizationExist = await this.onboardingService.findOrganization(
         createOrganizationDto?.name?.toLowerCase(),
         organizationAdminIdString,
@@ -250,7 +252,7 @@ HOST_FOR_NEST=${encryptedConfig.HOST_FOR_NEST}`;
         organizationAdminIdString,
         newOrganization?.id,
       );
-
+      
       return res.status(201).json({
         Error: 'Organization Created successfully !!',
         newOrganization,
@@ -4101,6 +4103,7 @@ Note: The dev_config.txt contains your organization configuration and will be us
         screenshot_monitoring,
         screenshot_id,
       } = body;
+      
       console.log(
         blurScreenshotsStatus,
         time_interval,

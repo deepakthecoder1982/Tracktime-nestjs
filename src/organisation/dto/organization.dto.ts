@@ -6,12 +6,12 @@ export class CreateOrganizationDTO {
   name: string; // Organization name
 
   @IsString()
-  // @IsNotEmpty()
-  country: string; // Organization's country
+  @IsOptional() // Change this from @IsNotEmpty()
+  country?: string; // Add the '?' to mark it optional in TS
 
   @IsString()
   @IsNotEmpty()
-  timeZone: string; // Organization's time zone
+  timeZone: string; // Organization's time zone 
 
   @IsString()
   @IsOptional()
