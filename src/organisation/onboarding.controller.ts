@@ -74,9 +74,9 @@ export class OnboardingController {
 
   private readonly appConfig = {
     hostForNest: process.env.HOST_FOR_NEST ||
-      'https://tracktime-nestjs.onrender.com/onboarding/users/configStatus',
+      'https://tracktime-nestjs-1.onrender.com/onboarding/users/configStatus',
     hostForGo: process.env.HOST_FOR_GO ||
-      'https://tracktime-go-producer.onrender.com/produce',
+      'https://tracktime-go-producer-lblt.onrender.com/produce',
     defaultVersion: process.env.DEFAULT_APP_VERSION || '1.0.0',
     defaultTimeForUnpaidUser: process.env.DEFAULT_TIME_FOR_UNPAID_USER || '2',
     defaultBlurStatus: process.env.DEFAULT_BLUR_STATUS || 'false',
