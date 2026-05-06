@@ -129,7 +129,7 @@ const weekdayData = [
 // You can then save this `weekdayData` into the database using your existing repository methods.
 
 export let DeployFlaskBaseApi =
-  'https://tracktime-flask-ai-zy26.onrender.com';
+  'https://tracktime-flask-ai-latest-version.onrender.com';
 export let LocalFlaskBaseApi = 'http://127.0.0.1:5000';
 // DeployFlaskBaseApi=LocalFlaskBaseApi;
 type UpdateConfigType = DeepPartial<User['config']>;
