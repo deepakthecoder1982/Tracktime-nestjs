@@ -97,9 +97,9 @@ export class UpdateService {
           'organisation',
           'Installer',
           'linux',
-          'productivity-desktop_0.1.0-1_amd64.deb',
+          'tracktime_1.0.0_amd64.deb',
         );
-        fileName = 'productivity-desktop_0.1.0-1_amd64.deb';
+        fileName = 'tracktime_1.0.0_amd64.deb';
         break;
       case 'macos':
         installerPath = path.join(

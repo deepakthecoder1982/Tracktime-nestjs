@@ -3293,7 +3293,7 @@ Note: The dev_config.txt contains your organization configuration and will be us
 
       const installerPath = path.join(
         osInstallerPath,
-        'productivity-desktop_0.1.0-1_amd64.deb',
+        'tracktime_1.0.0_amd64.deb',
       );
 
       if (!fs.existsSync(installerPath)) {
@@ -3314,7 +3314,7 @@ Note: The dev_config.txt contains your organization configuration and will be us
       zip.addLocalFile(
         installerPath,
         '',
-        'productivity-desktop_0.1.0-1_amd64.deb',
+        'tracktime_1.0.0_amd64.deb',
       );
       zip.addFile('dev_config.txt', Buffer.from(updatedConfig, 'utf8'));
 
