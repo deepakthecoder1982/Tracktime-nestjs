@@ -3196,7 +3196,6 @@ HOST_FOR_NEST=${encryptedConfig.HOST_FOR_NEST}`;
         `Creating macOS installer package for organization: ${orgName}`,
       );
 
-      // Check for installer files
       const dmgPath = path.join(
         osInstallerPath,
         'Installer',
@@ -3206,10 +3205,12 @@ HOST_FOR_NEST=${encryptedConfig.HOST_FOR_NEST}`;
 
       let installerPath: string;
       let installerFileName: string;
+      let isDmg = false;
 
       if (fs.existsSync(dmgPath)) {
         installerPath = dmgPath;
         installerFileName = 'TrackTime-1.0.0.dmg';
+        isDmg = true;
       } else if (fs.existsSync(trackTimePath)) {
         installerPath = trackTimePath;
         installerFileName = 'trackTime';
@@ -3221,57 +3222,120 @@ HOST_FOR_NEST=${encryptedConfig.HOST_FOR_NEST}`;
       }
 
       const customizedInstallerName = `TrackTime_macOS_Installer.zip`;
-      const customizedInstallerPath = path.join(
-        installerBasePath,
-        customizedInstallerName,
+
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="${customizedInstallerName}"`,
       );
 
-      // Create ZIP package
-      const zip = new AdmZip();
-      zip.addLocalFile(installerPath, '', installerFileName);
-      zip.addFile('dev_config.txt', Buffer.from(updatedConfig, 'utf8'));
+      const archive = (archiver as any)('zip', { zlib: { level: 5 } });
 
-      const readmeContent = `TrackTime Installer - macOS
-
-Installation:
-1. Extract this ZIP file
-2. Double-click '${installerFileName}' to install
-3. Grant permissions if prompted
-4. Done!
-
-Note: The dev_config.txt contains your organization configuration and will be used automatically.`;
-
-      zip.addFile('README.txt', Buffer.from(readmeContent, 'utf8'));
-      zip.writeZip(customizedInstallerPath);
-      this.logger.log(
-        `macOS installer package created: ${customizedInstallerName}`,
-      );
-
-      // Send file
-      res.set({
-        'Content-Disposition': `attachment; filename="${customizedInstallerName}"`,
-        'Content-Type': 'application/zip',
-        'Content-Length': fs.statSync(customizedInstallerPath).size.toString(),
+      archive.on('error', (err: any) => {
+        this.logger.error('Archive packaging error:', err);
+        if (!res.headersSent) {
+          res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+            message: 'Failed to package macOS installer',
+            error: err?.message,
+          });
+        }
       });
 
-      res
-        .status(HttpStatus.OK)
-        .sendFile(customizedInstallerPath, {}, async (err) => {
-          try {
-            if (fs.existsSync(customizedInstallerPath)) {
-              fs.unlinkSync(customizedInstallerPath);
-              this.logger.log('Temporary installer cleaned up successfully.');
-            }
-          } catch (cleanupError) {
-            this.logger.error('Cleanup error:', cleanupError);
-          }
+      archive.pipe(res);
+      archive.file(installerPath, { name: installerFileName });
+      archive.append(Buffer.from(updatedConfig, 'utf8'), {
+        name: 'dev_config.txt',
+      });
+
+      const readmeLines = [
+        '==================================================',
+        ' TrackTime macOS Installation Guide',
+        '==================================================',
+        '',
+      ];
+
+      if (isDmg) {
+        readmeLines.push(
+          'OPTION A: AUTOMATED SETUP (Recommended)',
+          '---------------------------------------',
+          '1. Double-click "TrackTime-1.0.0.dmg" to mount the disk image.',
+          '2. Open Terminal, navigate to this extracted folder, and run:',
+          '   chmod +x install.sh && ./install.sh',
+          '',
+          'OPTION B: MANUAL TERMINAL SETUP',
+          '-------------------------------',
+          '1. Double-click "TrackTime-1.0.0.dmg" to mount the disk image.',
+          '2. Open Terminal and run the following commands:',
+          '   mkdir -p ~/.tracktime',
+          '   cp -f /Volumes/TrackTimeInstaller/tracktime ~/.tracktime/',
+          '   cp -f dev_config.txt ~/.tracktime/',
+          '   xattr -cr ~/.tracktime/tracktime',
+          '   chmod +x ~/.tracktime/tracktime',
+        );
+      } else {
+        readmeLines.push(
+          'TERMINAL SETUP DIRECTIONS',
+          '-------------------------',
+          '1. Open your Terminal application.',
+          '2. Navigate to this unzipped folder using the "cd" command.',
+          '3. Execute the following setup cluster:',
+          '   mkdir -p ~/.tracktime',
+          '   cp -f trackTime ~/.tracktime/tracktime',
+          '   cp -f dev_config.txt ~/.tracktime/',
+          '   xattr -cr ~/.tracktime/tracktime',
+          '   chmod +x ~/.tracktime/tracktime',
+        );
+      }
+
+      readmeLines.push(
+        '',
+        '3. START THE SERVICE:',
+        '   ~/.tracktime/tracktime',
+        '',
+        '4. SECURITY CONFIGURATION (CRITICAL):',
+        '   macOS blocks system activity tracking by default.',
+        '   Navigate to: System Settings -> Privacy & Security.',
+        '   Ensure your Terminal profile is explicitly enabled under BOTH:',
+        '   - Accessibility',
+        '   - Input Monitoring',
+      );
+
+      archive.append(Buffer.from(readmeLines.join('\n'), 'utf8'), {
+        name: 'README.txt',
+      });
+
+      if (isDmg) {
+        const bashScriptContent = [
+          '#!/bin/bash',
+          'echo "Configuring TrackTime Background Engine..."',
+          'mkdir -p ~/.tracktime',
+          '',
+          'if [ -d "/Volumes/TrackTimeInstaller" ]; then',
+          '  cp -f /Volumes/TrackTimeInstaller/tracktime ~/.tracktime/',
+          '  cp -f dev_config.txt ~/.tracktime/',
+          '  xattr -cr ~/.tracktime/tracktime',
+          '  chmod +x ~/.tracktime/tracktime',
+          '  echo "Installation completed successfully!"',
+          'else',
+          '  echo "ERROR: Please double-click TrackTime-1.0.0.dmg to mount it before running this script."',
+          '  exit 1',
+          'fi',
+        ].join('\n');
+
+        archive.append(Buffer.from(bashScriptContent, 'utf8'), {
+          name: 'install.sh',
         });
+      }
+
+      await archive.finalize();
     } catch (error) {
       this.logger.error('Error creating macOS installer:', error);
-      return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
-        message: 'Failed to create macOS installer',
-        error: error.message,
-      });
+      if (!res.headersSent) {
+        return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+          message: 'Failed to create macOS installer',
+          error: (error as any)?.message,
+        });
+      }
     }
   }
 
@@ -3310,7 +3374,7 @@ Note: The dev_config.txt contains your organization configuration and will be us
       );
 
       // Create ZIP package
-      const zip = new AdmZip();
+      const zip = new (AdmZip as any)();
       zip.addLocalFile(
         installerPath,
         '',
@@ -3398,7 +3462,7 @@ Note: The dev_config.txt contains your organization configuration and will be us
       }
 
       // 3. Create a new ZIP package containing the installer and config
-      const zip = new AdmZip();
+      const zip = new (AdmZip as any)();
 
       // 4. Add the installer to the ZIP
       zip.addLocalFile(installerExePath, '', 'tracktimeInstaller.exe');
@@ -3500,8 +3564,7 @@ Note: The dev_config.txt contains your organization configuration and will be us
 
       return new Promise((resolve, reject) => {
         const output = fs.createWriteStream(outputZipPath);
-        const archive = archiver('zip', { zlib: { level: 9 } });
-
+      const archive = (archiver as any)('zip', { zlib: { level: 9 } });
         output.on('close', () => {
           this.logger.log(`Archive created: ${archive.pointer()} total bytes`);
 

@@ -37,6 +37,7 @@
     "@nestjs/websockets": "^10.4.20",
     "@ory/cli": "^0.2.2",
     "@ory/client": "^1.4.0",
+    "@types/archiver": "^7.0.0",
     "@types/pg": "^8.15.4",
     "adm-zip": "^0.5.16",
     "archiver": "^7.0.1",
