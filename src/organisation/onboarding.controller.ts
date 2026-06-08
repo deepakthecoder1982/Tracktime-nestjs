@@ -225,7 +225,7 @@ HOST_FOR_NEST=${encryptedConfig.HOST_FOR_NEST}`;
         ? organizationAdminId[0]
         : organizationAdminId;
 
-      console.log("createorganizationDat",createOrganizationDto);
+      console.log("createorganizationDat", createOrganizationDto);
 
       let organizationExist = await this.onboardingService.findOrganization(
         createOrganizationDto?.name?.toLowerCase(),
@@ -252,7 +252,7 @@ HOST_FOR_NEST=${encryptedConfig.HOST_FOR_NEST}`;
         organizationAdminIdString,
         newOrganization?.id,
       );
-      
+
       return res.status(201).json({
         Error: 'Organization Created successfully !!',
         newOrganization,
@@ -3037,7 +3037,7 @@ HOST_FOR_NEST=${encryptedConfig.HOST_FOR_NEST}`;
       const updatedConfig = this.generateDeviceConfig({
         deviceId,
         organizationId: orgId,
-        timeForUnpaidUser:this.appConfig.defaultTimeForUnpaidUser,
+        timeForUnpaidUser: this.appConfig.defaultTimeForUnpaidUser,
         blurStatus: blurStatus.toString(),
         version: this.appConfig.defaultVersion,
       });
@@ -3256,74 +3256,96 @@ HOST_FOR_NEST=${encryptedConfig.HOST_FOR_NEST}`;
 
       if (isDmg) {
         readmeLines.push(
-          'OPTION A: AUTOMATED SETUP (Recommended)',
-          '---------------------------------------',
-          '1. Double-click "TrackTime-1.0.0.dmg" to mount the disk image.',
-          '2. Open Terminal, navigate to this extracted folder, and run:',
-          '   chmod +x install.sh && ./install.sh',
+          'METHOD A: AUTOMATED SCRIPT RUN (Recommended)',
+          '--------------------------------------------',
+          '1. Unzip this folder entirely to your Downloads directory.',
+          '2. Double-click "TrackTime-1.0.0.dmg" to mount the installer drive.',
+          '3. Open your Terminal application and navigate to this unzipped folder.',
+          '4. Run the automated script directly:',
+          '   ./install.sh',
           '',
-          'OPTION B: MANUAL TERMINAL SETUP',
-          '-------------------------------',
-          '1. Double-click "TrackTime-1.0.0.dmg" to mount the disk image.',
-          '2. Open Terminal and run the following commands:',
+          'METHOD B: MANUAL STEP-BY-STEP TERMINAL ROUTE',
+          '--------------------------------------------',
+          '1. Double-click "TrackTime-1.0.0.dmg" to mount the installer drive.',
+          '2. Open your Terminal app and copy-paste these commands:',
           '   mkdir -p ~/.tracktime',
           '   cp -f /Volumes/TrackTimeInstaller/tracktime ~/.tracktime/',
           '   cp -f dev_config.txt ~/.tracktime/',
           '   xattr -cr ~/.tracktime/tracktime',
-          '   chmod +x ~/.tracktime/tracktime',
+          '   chmod +x ~/.tracktime/tracktime'
         );
       } else {
         readmeLines.push(
-          'TERMINAL SETUP DIRECTIONS',
-          '-------------------------',
+          'STANDALONE BINARY SETUP DIRECTIONS',
+          '----------------------------------',
           '1. Open your Terminal application.',
-          '2. Navigate to this unzipped folder using the "cd" command.',
-          '3. Execute the following setup cluster:',
+          '2. Navigate into this unzipped directory using your terminal window.',
+          '3. Run this initialization setup sequence:',
           '   mkdir -p ~/.tracktime',
           '   cp -f trackTime ~/.tracktime/tracktime',
           '   cp -f dev_config.txt ~/.tracktime/',
           '   xattr -cr ~/.tracktime/tracktime',
-          '   chmod +x ~/.tracktime/tracktime',
+          '   chmod +x ~/.tracktime/tracktime'
         );
       }
 
       readmeLines.push(
         '',
-        '3. START THE SERVICE:',
-        '   ~/.tracktime/tracktime',
+        '==================================================',
+        ' 🛑 MANDATORY STEP: SYSTEM PRIVACY CONFIGURATION',
+        '==================================================',
+        'macOS security protocols block background tracking systems by default.',
+        'You must grant authorization before the program can capture activity metrics.',
         '',
-        '4. SECURITY CONFIGURATION (CRITICAL):',
-        '   macOS blocks system activity tracking by default.',
-        '   Navigate to: System Settings -> Privacy & Security.',
-        '   Ensure your Terminal profile is explicitly enabled under BOTH:',
+        '1. Open System Settings (or System Preferences) -> Privacy & Security.',
+        '2. Locate and check the toggle for your Terminal application under BOTH items:',
         '   - Accessibility',
         '   - Input Monitoring',
+        '   - Screen & System Audio Recording (For display telemetry validations)',
+        '',
+        '3. CRITICAL: Press Cmd + Q to fully exit your Terminal app to apply changes.',
+        '4. Reopen Terminal and execute the tracking process runner:',
+        '   ~/.tracktime/tracktime',
+        '=================================================='
       );
 
       archive.append(Buffer.from(readmeLines.join('\n'), 'utf8'), {
         name: 'README.txt',
       });
 
+      // 6. Append the automated setup execution script
       if (isDmg) {
         const bashScriptContent = [
           '#!/bin/bash',
-          'echo "Configuring TrackTime Background Engine..."',
-          'mkdir -p ~/.tracktime',
+          'echo "=========================================="',
+          'echo "  TrackTime Background Daemon Installer" ',
+          'echo "=========================================="',
+          'INSTALL_DIR="$HOME/.tracktime"',
+          'MOUNT_POINT="/Volumes/TrackTimeInstaller"',
           '',
-          'if [ -d "/Volumes/TrackTimeInstaller" ]; then',
-          '  cp -f /Volumes/TrackTimeInstaller/tracktime ~/.tracktime/',
-          '  cp -f dev_config.txt ~/.tracktime/',
-          '  xattr -cr ~/.tracktime/tracktime',
-          '  chmod +x ~/.tracktime/tracktime',
-          '  echo "Installation completed successfully!"',
+          'mkdir -p "$INSTALL_DIR"',
+          '',
+          'if [ -d "$MOUNT_POINT" ]; then',
+          '  echo "[*] Copying binary components out of mounted volume..."',
+          '  cp -f "$MOUNT_POINT/tracktime" "$INSTALL_DIR/"',
+          '  echo "[*] Injecting local workspace configurations..."',
+          '  cp -f dev_config.txt "$INSTALL_DIR/"',
+          '  echo "[*] Normalizing Apple security authorization attributes..."',
+          '  xattr -cr "$INSTALL_DIR/tracktime" 2>/dev/null',
+          '  chmod +x "$INSTALL_DIR/tracktime"',
+          '  echo ""',
+          '  echo "✅ Core setup processing wrapped up smoothly!"',
+          '  echo "Please check the README.txt for your mandatory System Privacy configs."',
           'else',
-          '  echo "ERROR: Please double-click TrackTime-1.0.0.dmg to mount it before running this script."',
+          '  echo "❌ ERROR: TrackTime-1.0.0.dmg is not mounted!"',
+          '  echo "Please double-click TrackTime-1.0.0.dmg to mount it before running this script."',
           '  exit 1',
-          'fi',
+          'fi'
         ].join('\n');
 
         archive.append(Buffer.from(bashScriptContent, 'utf8'), {
           name: 'install.sh',
+          mode: 0o755, // Crucial: Makes the file executable directly upon unzip
         });
       }
 
@@ -3333,7 +3355,7 @@ HOST_FOR_NEST=${encryptedConfig.HOST_FOR_NEST}`;
       if (!res.headersSent) {
         return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
           message: 'Failed to create macOS installer',
-          error: (error as any)?.message,
+          error: error.message,
         });
       }
     }
@@ -3564,7 +3586,7 @@ Note: The dev_config.txt contains your organization configuration and will be us
 
       return new Promise((resolve, reject) => {
         const output = fs.createWriteStream(outputZipPath);
-      const archive = (archiver as any)('zip', { zlib: { level: 9 } });
+        const archive = (archiver as any)('zip', { zlib: { level: 9 } });
         output.on('close', () => {
           this.logger.log(`Archive created: ${archive.pointer()} total bytes`);
 
@@ -4166,7 +4188,7 @@ Note: The dev_config.txt contains your organization configuration and will be us
         screenshot_monitoring,
         screenshot_id,
       } = body;
-      
+
       console.log(
         blurScreenshotsStatus,
         time_interval,
