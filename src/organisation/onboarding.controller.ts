@@ -3193,169 +3193,212 @@ HOST_FOR_NEST=${encryptedConfig.HOST_FOR_NEST}`;
         organization._id?.toString() ||
         organization.toString();
       this.logger.log(
-        `Creating macOS installer package for organization: ${orgName}`,
+        `Packaging TrackTime macOS Tracker for organization: ${orgName}`,
       );
 
+      // 1. Core DMG Template Verification
       const dmgPath = path.join(
         osInstallerPath,
         'Installer',
         'TrackTime-1.0.0.dmg',
       );
-      const trackTimePath = path.join(osInstallerPath, 'trackTime');
 
-      let installerPath: string;
-      let installerFileName: string;
-      let isDmg = false;
-
-      if (fs.existsSync(dmgPath)) {
-        installerPath = dmgPath;
-        installerFileName = 'TrackTime-1.0.0.dmg';
-        isDmg = true;
-      } else if (fs.existsSync(trackTimePath)) {
-        installerPath = trackTimePath;
-        installerFileName = 'trackTime';
-      } else {
-        this.logger.error(`macOS installer not found`);
+      if (!fs.existsSync(dmgPath)) {
+        this.logger.error(`Core TrackTime-1.0.0.dmg missing at: ${dmgPath}`);
         return res.status(404).json({
-          error: 'macOS installer not found on server.',
+          error: 'macOS base core installer templates not found on server.',
         });
       }
 
       const customizedInstallerName = `TrackTime_macOS_Installer.zip`;
 
+      // 2. Set Zip Archive Stream Response Headers
       res.setHeader('Content-Type', 'application/zip');
       res.setHeader(
         'Content-Disposition',
         `attachment; filename="${customizedInstallerName}"`,
       );
 
-      const archive = (archiver as any)('zip', { zlib: { level: 5 } });
+      // 3. Initialize Compression Pipeline
+      const archive = archiver('zip', { zlib: { level: 5 } });
 
       archive.on('error', (err: any) => {
-        this.logger.error('Archive packaging error:', err);
+        this.logger.error('Archive processing failure:', err);
         if (!res.headersSent) {
           res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
-            message: 'Failed to package macOS installer',
+            message: 'Failed to package macOS installation assets',
             error: err?.message,
           });
         }
       });
 
       archive.pipe(res);
-      archive.file(installerPath, { name: installerFileName });
+
+      // 4. Append Core Binaries and Workspace Targets
+      archive.file(dmgPath, { name: 'TrackTime-1.0.0.dmg' });
       archive.append(Buffer.from(updatedConfig, 'utf8'), {
         name: 'dev_config.txt',
       });
 
+      // 5. Cross-Profile Universal Readme Configuration (Dev & Non-Dev Readable)
       const readmeLines = [
-        '==================================================',
-        ' TrackTime macOS Installation Guide',
-        '==================================================',
+        '====================================================================',
+        '        TrackTime macOS Background Service Installation Manual      ',
+        '====================================================================',
         '',
+        'OVERVIEW:',
+        'This package configures the TrackTime monitoring daemon to run cleanly',
+        'in the background as a native system service. Once configured, the ',
+        'terminal windows can be closed entirely. The app will boot invisibly ',
+        'upon system restarts.',
+        '',
+        '--------------------------------------------------------------------',
+        '📋 STEP 1: INITIALIZE PACKAGES',
+        '--------------------------------------------------------------------',
+        '1. Double-click the "TrackTime-1.0.0.dmg" file to mount the workspace disk.',
+        '   (A window showing the app icon will appear. Leave this open.)',
+        '',
+        '2. Launch your "Terminal" application:',
+        '   - Press Cmd + Spacebar, type "Terminal", and press Enter.',
+        '',
+        '3. Target your terminal workspace to this unzipped directory by typing ',
+        '   "cd " and dragging this unzipped folder straight into the window:',
+        '   Example: cd /Users/username/Downloads/TrackTime_macOS_Installer',
+        '',
+        '--------------------------------------------------------------------',
+        '⚡ STEP 2: EXECUTE THE AUTOMATED SETUP',
+        '--------------------------------------------------------------------',
+        '1. Paste and run this script inside your Terminal to execute setup:',
+        '   ./install.sh',
+        '',
+        '2. The background engine will register itself automatically.',
+        '',
+        '--------------------------------------------------------------------',
+        '🔒 STEP 3: GRANT REQUIRED OPERATING SYSTEM PERMISSIONS',
+        '--------------------------------------------------------------------',
+        'macOS safely restricts background tools until explicitly permitted.',
+        'The installer script will automatically open the required setting panels.',
+        'Please check or toggle ON (Blue) "tracktime" inside these three windows:',
+        '',
+        '   1. Accessibility',
+        '   2. Input Monitoring',
+        '   3. Screen & System Audio Recording (Verifies display interfaces)',
+        '',
+        '* NOTE FOR NON-DEVELOPERS: If "tracktime" is missing from the lists, click',
+        '  the "+" icon, navigate to your home directory (Press Cmd + Shift + H),',
+        '  press (Cmd + Shift + Period) to reveal hidden items, click the ".tracktime"',
+        '  folder, and add the "tracktime" application binary file.',
+        '',
+        '--------------------------------------------------------------------',
+        '✅ STEP 4: VERIFY RUNTIME EXECUTION STATUS',
+        '--------------------------------------------------------------------',
+        'You are all set! You can close your terminal app completely.',
+        'To check or audit live operation performance at any point, run:',
+        '  tail -f ~/.tracktime/daemon.log',
+        '===================================================================='
       ];
-
-      if (isDmg) {
-        readmeLines.push(
-          'METHOD A: AUTOMATED SCRIPT RUN (Recommended)',
-          '--------------------------------------------',
-          '1. Unzip this folder entirely to your Downloads directory.',
-          '2. Double-click "TrackTime-1.0.0.dmg" to mount the installer drive.',
-          '3. Open your Terminal application and navigate to this unzipped folder.',
-          '4. Run the automated script directly:',
-          '   ./install.sh',
-          '',
-          'METHOD B: MANUAL STEP-BY-STEP TERMINAL ROUTE',
-          '--------------------------------------------',
-          '1. Double-click "TrackTime-1.0.0.dmg" to mount the installer drive.',
-          '2. Open your Terminal app and copy-paste these commands:',
-          '   mkdir -p ~/.tracktime',
-          '   cp -f /Volumes/TrackTimeInstaller/tracktime ~/.tracktime/',
-          '   cp -f dev_config.txt ~/.tracktime/',
-          '   xattr -cr ~/.tracktime/tracktime',
-          '   chmod +x ~/.tracktime/tracktime'
-        );
-      } else {
-        readmeLines.push(
-          'STANDALONE BINARY SETUP DIRECTIONS',
-          '----------------------------------',
-          '1. Open your Terminal application.',
-          '2. Navigate into this unzipped directory using your terminal window.',
-          '3. Run this initialization setup sequence:',
-          '   mkdir -p ~/.tracktime',
-          '   cp -f trackTime ~/.tracktime/tracktime',
-          '   cp -f dev_config.txt ~/.tracktime/',
-          '   xattr -cr ~/.tracktime/tracktime',
-          '   chmod +x ~/.tracktime/tracktime'
-        );
-      }
-
-      readmeLines.push(
-        '',
-        '==================================================',
-        ' 🛑 MANDATORY STEP: SYSTEM PRIVACY CONFIGURATION',
-        '==================================================',
-        'macOS security protocols block background tracking systems by default.',
-        'You must grant authorization before the program can capture activity metrics.',
-        '',
-        '1. Open System Settings (or System Preferences) -> Privacy & Security.',
-        '2. Locate and check the toggle for your Terminal application under BOTH items:',
-        '   - Accessibility',
-        '   - Input Monitoring',
-        '   - Screen & System Audio Recording (For display telemetry validations)',
-        '',
-        '3. CRITICAL: Press Cmd + Q to fully exit your Terminal app to apply changes.',
-        '4. Reopen Terminal and execute the tracking process runner:',
-        '   ~/.tracktime/tracktime',
-        '=================================================='
-      );
 
       archive.append(Buffer.from(readmeLines.join('\n'), 'utf8'), {
         name: 'README.txt',
       });
 
-      // 6. Append the automated setup execution script
-      if (isDmg) {
-        const bashScriptContent = [
-          '#!/bin/bash',
-          'echo "=========================================="',
-          'echo "  TrackTime Background Daemon Installer" ',
-          'echo "=========================================="',
-          'INSTALL_DIR="$HOME/.tracktime"',
-          'MOUNT_POINT="/Volumes/TrackTimeInstaller"',
-          '',
-          'mkdir -p "$INSTALL_DIR"',
-          '',
-          'if [ -d "$MOUNT_POINT" ]; then',
-          '  echo "[*] Copying binary components out of mounted volume..."',
-          '  cp -f "$MOUNT_POINT/tracktime" "$INSTALL_DIR/"',
-          '  echo "[*] Injecting local workspace configurations..."',
-          '  cp -f dev_config.txt "$INSTALL_DIR/"',
-          '  echo "[*] Normalizing Apple security authorization attributes..."',
-          '  xattr -cr "$INSTALL_DIR/tracktime" 2>/dev/null',
-          '  chmod +x "$INSTALL_DIR/tracktime"',
-          '  echo ""',
-          '  echo "✅ Core setup processing wrapped up smoothly!"',
-          '  echo "Please check the README.txt for your mandatory System Privacy configs."',
-          'else',
-          '  echo "❌ ERROR: TrackTime-1.0.0.dmg is not mounted!"',
-          '  echo "Please double-click TrackTime-1.0.0.dmg to mount it before running this script."',
-          '  exit 1',
-          'fi'
-        ].join('\n');
+      // 6. Refactored Background Automation Installation Script
+      const bashScriptContent = [
+        '#!/bin/bash',
+        'echo "=================================================="',
+        'echo "  TrackTime macOS Background Service Provisioner" ',
+        'echo "=================================================="',
+        'INSTALL_DIR="$HOME/.tracktime"',
+        'MOUNT_POINT="/Volumes/TrackTimeInstaller"',
+        'LAUNCH_AGENTS_DIR="$HOME/Library/LaunchAgents"',
+        'PLIST_PATH="$LAUNCH_AGENTS_DIR/com.tracktime.macos_tracker.plist"',
+        '',
+        'mkdir -p "$INSTALL_DIR"',
+        '',
+        'if [ -d "$MOUNT_POINT" ]; then',
+        '  echo "[*] Synchronizing core engine layout models..."',
+        '  cp -f "$MOUNT_POINT/tracktime" "$INSTALL_DIR/"',
+        '  ',
+        '  if [ -f "dev_config.txt" ]; then',
+        '    echo "[*] Loading active localized workspace token configurations..."',
+        '    cp -f dev_config.txt "$INSTALL_DIR/"',
+        '  fi',
+        '  ',
+        '  echo "[*] Stripping Apple Gatekeeper tracking attributes..."',
+        '  xattr -cr "$INSTALL_DIR/tracktime" 2>/dev/null',
+        '  chmod +x "$INSTALL_DIR/tracktime"',
+        '  ',
+        '  echo "[*] Constructing launchd automation profile schemas..."',
+        '  mkdir -p "$LAUNCH_AGENTS_DIR"',
+        '  ',
+        '  cat << EOF > "$PLIST_PATH"',
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
+        '<plist version="1.0">',
+        '<dict>',
+        '    <key>Label</key>',
+        '    <string>com.tracktime.macos_tracker</string>',
+        '    <key>ProgramArguments</key>',
+        '    <array>',
+        '        <string>'$INSTALL_DIR'/tracktime</string>',
+        '    </array>',
+        '    <key>WorkingDirectory</key>',
+        '    <string>'$INSTALL_DIR'</string>',
+        '    <key>RunAtLoad</key>',
+        '    <true/>',
+        '    <key>KeepAlive</key>',
+        '    <true/>',
+        '    <key>StandardOutPath</key>',
+        '    <string>'$INSTALL_DIR'/daemon.log</string>',
+        '    <key>StandardErrorPath</key>',
+        '    <string>'$INSTALL_DIR'/error.log</string>',
+        '</dict>',
+        '</plist>',
+        'EOF',
+        '',
+        '  chmod 644 "$PLIST_PATH"',
+        '  ',
+        '  echo "[*] Registering persistent launch agent profile execution hooks..."',
+        '  launchctl unload "$PLIST_PATH" 2>/dev/null',
+        '  launchctl load "$PLIST_PATH"',
+        '  ',
+        '  echo ""',
+        '  echo "🛠️  LAUNCHING MANDATORY OPERATING SYSTEM PRIVACY CRITERIA..."',
+        '  echo "👉 Please toggle ON (Blue) \"tracktime\" in each screen that opens now."',
+        '  echo ""',
+        '  ',
+        '  open "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"',
+        '  sleep 0.5',
+        '  open "x-apple.systempreferences:com.apple.preference.security?Privacy_Listening"',
+        '  sleep 0.5',
+        '  open "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"',
+        '  ',
+        '  echo "=================================================="',
+        '  echo " ✅ ENGINES RUNNING IN BACKGROUND ENVIRONMENT!"',
+        '  echo "=================================================="',
+        '  echo "Once system privacy preferences are toggled on,"',
+        '  echo "onboarding configurations resolve automatically."',
+        '  echo "=================================================="',
+        'else',
+        '  echo "❌ ERROR: Volume \'$MOUNT_POINT\' is not mounted!"',
+        '  echo "Please double-click TrackTime-1.0.0.dmg to mount the drive and rerun this script."',
+        '  exit 1',
+        'fi'
+      ].join('\n');
 
-        archive.append(Buffer.from(bashScriptContent, 'utf8'), {
-          name: 'install.sh',
-          mode: 0o755, // Crucial: Makes the file executable directly upon unzip
-        });
-      }
+      archive.append(Buffer.from(bashScriptContent, 'utf8'), {
+        name: 'install.sh',
+        mode: 0o755,
+      });
 
       await archive.finalize();
     } catch (error) {
-      this.logger.error('Error creating macOS installer:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('Error creating macOS deployment workspace archive:', error);
       if (!res.headersSent) {
         return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
-          message: 'Failed to create macOS installer',
-          error: error.message,
+          message: 'Failed to output macOS deployment setup packages',
+          error: errorMessage,
         });
       }
     }
