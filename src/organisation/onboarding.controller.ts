@@ -3302,7 +3302,7 @@ HOST_FOR_NEST=${encryptedConfig.HOST_FOR_NEST}`;
         name: 'README.txt',
       });
 
-      // 6. Refactored Background Automation Installation Script
+      // 6. Refactored Background Automation Installation Script (FIXED STRING LITERAL ESCAPES)
       const bashScriptContent = [
         '#!/bin/bash',
         'echo "=================================================="',
@@ -3340,18 +3340,18 @@ HOST_FOR_NEST=${encryptedConfig.HOST_FOR_NEST}`;
         '    <string>com.tracktime.macos_tracker</string>',
         '    <key>ProgramArguments</key>',
         '    <array>',
-        '        <string>'$INSTALL_DIR'/tracktime</string>',
+        '        <string>$INSTALL_DIR/tracktime</string>',
         '    </array>',
         '    <key>WorkingDirectory</key>',
-        '    <string>'$INSTALL_DIR'</string>',
+        '    <string>$INSTALL_DIR</string>',
         '    <key>RunAtLoad</key>',
         '    <true/>',
         '    <key>KeepAlive</key>',
         '    <true/>',
         '    <key>StandardOutPath</key>',
-        '    <string>'$INSTALL_DIR'/daemon.log</string>',
+        '    <string>$INSTALL_DIR/daemon.log</string>',
         '    <key>StandardErrorPath</key>',
-        '    <string>'$INSTALL_DIR'/error.log</string>',
+        '    <string>$INSTALL_DIR/error.log</string>',
         '</dict>',
         '</plist>',
         'EOF',
@@ -3403,7 +3403,6 @@ HOST_FOR_NEST=${encryptedConfig.HOST_FOR_NEST}`;
       }
     }
   }
-
   private async handleLinuxInstaller(
     res: Response,
     organization: any,
