@@ -2825,289 +2825,171 @@ HOST_FOR_NEST=${encryptedConfig.HOST_FOR_NEST}`;
     }
   }
 
-  @Get('/downloadApplication')
-  async downloadApplication(@Res() res, @Req() req: Request) {
-    try {
-      const organizationAdminId = req.headers['organizationAdminId'];
-      const organizationAdminIdString = Array.isArray(organizationAdminId)
-        ? organizationAdminId[0]
-        : organizationAdminId;
+@Get('/downloadApplication')
+async downloadApplication(@Res() res, @Req() req: Request) {
+  try {
+    const organizationAdminId = req.headers['organizationAdminId'];
+    const organizationAdminIdString = Array.isArray(organizationAdminId)
+      ? organizationAdminId[0]
+      : organizationAdminId;
 
-      // Retrieve organization details
-      const organization =
-        await this.organizationAdminService.findOrganizationById(
-          organizationAdminIdString,
-        );
+    const organization = await this.organizationAdminService.findOrganizationById(
+      organizationAdminIdString,
+    );
+    if (!organization) {
+      return res.status(404).json({ error: 'Organization not found !!' });
+    }
 
-      if (!organization) {
-        return res.status(404).json({ error: 'Organization not found !!' });
-      }
+    // Remove organizationId from destructure — it's not used (header-derived org is authoritative)
+    const { os, userType, userName, userEmail: queryUserEmail } = req.query;
 
-      const { os, userType, userName, userEmail, organizationId } = req.query;
-
-      // Validate OS parameter
-      const supportedOS = ['windows', 'linux', 'macos'];
-      if (!os || !supportedOS.includes(os as string)) {
-        return res.status(400).json({
-          error:
-            'Invalid or missing OS parameter. Supported values: windows, linux, macos',
-        });
-      }
-
-      const selectedOS = os as string;
-
-      this.logger.log(
-        `Processing download for OS: ${selectedOS}, UserType: ${userType}`,
-      );
-
-      // Handle different user types
-      let deviceId = 'null';
-      let userId = 'null';
-      let finalUserName = 'anonymous';
-
-      if (userType === 'existing' && userName) {
-        // For existing user, find the user by email (extracted from display name)
-        const userDisplayName = decodeURIComponent(userName as string);
-        console.log('Processing existing user:', userDisplayName);
-
-        // Extract email from display name format: "(email) - Status"
-        const emailMatch = userDisplayName.match(/\(([^)]+)\)/);
-        if (emailMatch) {
-          const userEmail = emailMatch[1];
-          console.log('Extracted email:', userEmail);
-
-          try {
-            const user = await this.onboardingService.findUserByEmail(
-              userEmail,
-              organization,
-            );
-            if (user) {
-              userId = user.userUUID;
-              finalUserName = user.userName || user.email || 'existing_user';
-
-              // Find user's device
-              const userDevice =
-                await this.onboardingService.findDeviceByUserId(
-                  userId,
-                  organization,
-                );
-              if (userDevice) {
-                deviceId = userDevice.device_uid;
-              }
-            } else {
-              this.logger.warn(
-                `User not found for email: ${userEmail} in organization: ${organization}`,
-              );
-              return res
-                .status(404)
-                .json({ error: `User not found for email: ${userEmail}` });
-            }
-          } catch (error) {
-            this.logger.error('Error finding existing user:', error);
-            return res
-              .status(500)
-              .json({ error: 'Failed to find existing user' });
-          }
-        } else {
-          this.logger.warn(
-            `Invalid user display name format: ${userDisplayName}`,
-          );
-          return res
-            .status(400)
-            .json({ error: 'Invalid user display name format' });
-        }
-      } else if (userType === 'new' && userName && userEmail) {
-        // Create new user and device
-        try {
-          const newUser = await this.onboardingService.createUser({
-            user_name: userName as string,
-            email: userEmail as string,
-            organizationId: organization,
-            trackTimeStatus: TrackTimeStatus.Resume,
-          });
-
-          if (newUser) {
-            userId = newUser.userUUID;
-            finalUserName = userName as string;
-
-            // Create device for new user
-            const newDevice = await this.onboardingService.createDevice({
-              device_name: `${userName}_device`,
-              user_uid: userId,
-              organization_uid: organization,
-              user_name: userName as string,
-            });
-
-            if (newDevice) {
-              deviceId = newDevice.device_uid;
-            }
-          }
-        } catch (error) {
-          this.logger.error('Error creating new user/device:', error);
-          return res
-            .status(500)
-            .json({ error: 'Failed to create new user and device' });
-        }
-      } else if (userType === 'anonymous') {
-        // Create anonymous device only
-        try {
-          const anonymousDevice = await this.onboardingService.createDevice({
-            device_name: 'anonymous_device',
-            user_uid: null, // No user assigned
-            organization_uid: organization,
-            user_name: 'anonymous_user',
-          });
-
-          if (anonymousDevice) {
-            deviceId = anonymousDevice.device_uid;
-            finalUserName = 'anonymous';
-          }
-        } catch (error) {
-          this.logger.error('Error creating anonymous device:', error);
-          return res
-            .status(500)
-            .json({ error: 'Failed to create anonymous device' });
-        }
-      }
-
-      this.logger.log(
-        `Device ID: ${deviceId}, User ID: ${userId}, User Name: ${finalUserName}`,
-      );
-
-      // Get the appropriate installer path
-      const installerBasePath = path.join(
-        process.cwd(),
-        'src',
-        'organisation',
-        'Installer',
-      );
-
-      const osInstallerPath = path.join(installerBasePath, selectedOS);
-
-      // Check if OS folder exists
-      if (!fs.existsSync(osInstallerPath)) {
-        return res.status(404).json({
-          error: `Installer not available for ${selectedOS}`,
-        });
-      }
-
-      // Encryption setup
-      const key = 'an example very very secret key.';
-      const iv = Buffer.alloc(16, 0);
-
-      // Prepare configuration values
-      const orgId =
-        typeof organization === 'string'
-          ? organization
-          : (organization as any)._id?.toString() ||
-          (organization as any).toString();
-
-      // Get user-specific settings based on user type
-      let blurStatus = 'false';
-      let trackTimeStatus = 'Resume';
-      let isPaid = 'false';
-
-      if (userType === 'existing' && userName) {
-        // For existing user, get their actual settings using the userId we already found
-        if (userId && userId !== 'null') {
-          const user = await this.onboardingService.findUserByUuid(
-            userId,
-            organization,
-          );
-          if (user && user.config) {
-            trackTimeStatus = user.config.trackTimeStatus || 'Resume';
-          }
-        }
-        // Get blur status from user's device/policy
-        blurStatus = 'false'; // Default, can be enhanced later
-        isPaid = 'false'; // Default, can be enhanced later
-      } else if (userType === 'new') {
-        // For new user, use default settings
-        blurStatus = 'false';
-        trackTimeStatus = 'Resume';
-        isPaid = 'false';
-      } else if (userType === 'anonymous') {
-        // For anonymous user, use default settings
-        blurStatus = 'false';
-        trackTimeStatus = 'Resume';
-        isPaid = 'false';
-      }
-
-      // ✅ USE CENTRALIZED CONFIG GENERATION
-      const updatedConfig = this.generateDeviceConfig({
-        deviceId,
-        organizationId: orgId,
-        timeForUnpaidUser: this.appConfig.defaultTimeForUnpaidUser,
-        blurStatus: blurStatus.toString(),
-        version: this.appConfig.defaultVersion,
-      });
-
-
-      this.logger.log(`Config prepared successfully for ${selectedOS}`);
-
-      // Use existing methods to create and send ZIP file
-      if (selectedOS === 'windows') {
-        await this.handleWindowsInstallerWithAdmZip(
-          res,
-          organization,
-          osInstallerPath,
-          installerBasePath,
-          updatedConfig,
-        );
-      } else if (selectedOS === 'macos') {
-        await this.handleMacOSInstaller(
-          res,
-          organization,
-          osInstallerPath,
-          installerBasePath,
-          updatedConfig,
-        );
-      } else if (selectedOS === 'linux') {
-        await this.handleLinuxInstaller(
-          res,
-          organization,
-          osInstallerPath,
-          installerBasePath,
-          updatedConfig,
-        );
-      }
-
-      // COMMENTED OUT - GitHub Actions build system (no longer needed with direct zip distribution)
-      // const buildRequest = await this.buildStatusService.createBuildRequest(
-      //   userId || 'anonymous',
-      //   organizationAdminIdString,
-      //   selectedOS,
-      //   userType as string
-      // );
-
-      // await this.notificationService.createBuildNotification(
-      //   userId || 'anonymous',
-      //   buildRequest.buildId,
-      //   'pending',
-      //   {
-      //     os: selectedOS,
-      //     userType,
-      //     userName: finalUserName
-      //   }
-      // );
-
-      // await this.triggerGitHubBuild({
-      //   buildId: buildRequest.buildId,
-      //   os: selectedOS,
-      //   userId: userId || 'anonymous',
-      //   organizationId: organizationAdminIdString,
-      //   userType: userType as string,
-      //   userName: finalUserName,
-      //   deviceId
-      // });
-    } catch (error) {
-      this.logger.error('General error in downloadApplication:', error);
-      return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
-        message: 'Failed to download the application!',
-        error: error.message,
+    const supportedOS = ['windows', 'linux', 'macos'];
+    if (!os || !supportedOS.includes(os as string)) {
+      return res.status(400).json({
+        error: 'Invalid or missing OS parameter. Supported values: windows, linux, macos',
       });
     }
+
+    const selectedOS = os as string;
+    this.logger.log(`Processing download for OS: ${selectedOS}, UserType: ${userType}`);
+
+    let deviceId = 'null';
+    let userId = 'null';
+    let finalUserName = 'anonymous';
+    let trackTimeStatus = 'Resume';
+    let blurStatus = 'false';
+
+    if (userType === 'existing' && userName) {
+      const userDisplayName = decodeURIComponent(userName as string);
+      const emailMatch = userDisplayName.match(/\(([^)]+)\)/);
+
+      if (!emailMatch) {
+        return res.status(400).json({ error: 'Invalid user display name format' });
+      }
+
+      const extractedEmail = emailMatch[1]; // renamed — no more shadowing
+      this.logger.log(`Processing existing user email: ${extractedEmail}`);
+
+      try {
+        // Single lookup — reuse this object below instead of fetching again
+        const user = await this.onboardingService.findUserByEmail(
+          extractedEmail,
+          organization,
+        );
+
+        if (!user) {
+          return res.status(404).json({ error: `User not found for email: ${extractedEmail}` });
+        }
+
+        userId = user.userUUID;
+        finalUserName = user.userName || user.email || 'existing_user';
+
+        // Pull settings from the object we already have — no second DB call needed
+        if (user.config) {
+          trackTimeStatus = user.config.trackTimeStatus || 'Resume';
+        }
+
+        const userDevice = await this.onboardingService.findDeviceByUserId(userId, organization);
+        if (userDevice) {
+          deviceId = userDevice.device_uid;
+        }
+      } catch (error) {
+        this.logger.error('Error finding existing user:', error);
+        return res.status(500).json({ error: 'Failed to find existing user' });
+      }
+
+    } else if (userType === 'new' && userName && queryUserEmail) {
+      try {
+        const newUser = await this.onboardingService.createUser({
+          user_name: userName as string,
+          email: queryUserEmail as string,
+          organizationId: organization,
+          trackTimeStatus: TrackTimeStatus.Resume,
+        });
+
+        if (newUser) {
+          userId = newUser.userUUID;
+          finalUserName = userName as string;
+
+          const newDevice = await this.onboardingService.createDevice({
+            device_name: `${userName}_device`,
+            user_uid: userId,
+            organization_uid: organization,
+            user_name: userName as string,
+          });
+
+          if (newDevice) {
+            deviceId = newDevice.device_uid;
+          }
+        }
+      } catch (error) {
+        this.logger.error('Error creating new user/device:', error);
+        return res.status(500).json({ error: 'Failed to create new user and device' });
+      }
+
+    } else if (userType === 'anonymous') {
+      try {
+        const anonymousDevice = await this.onboardingService.createDevice({
+          device_name: 'anonymous_device',
+          user_uid: null,
+          organization_uid: organization,
+          user_name: 'anonymous_user',
+        });
+
+        if (anonymousDevice) {
+          deviceId = anonymousDevice.device_uid;
+        }
+      } catch (error) {
+        this.logger.error('Error creating anonymous device:', error);
+        return res.status(500).json({ error: 'Failed to create anonymous device' });
+      }
+    }
+
+    this.logger.log(`Device ID: ${deviceId}, User ID: ${userId}, User Name: ${finalUserName}`);
+
+    const installerBasePath = path.join(process.cwd(), 'src', 'organisation', 'Installer');
+    const osInstallerPath = path.join(installerBasePath, selectedOS);
+
+    if (!fs.existsSync(osInstallerPath)) {
+      return res.status(404).json({ error: `Installer not available for ${selectedOS}` });
+    }
+
+    const orgId = typeof organization === 'string'
+      ? organization
+      : (organization as any)._id?.toString() || (organization as any).toString();
+
+    // ✅ Single centralized config call — no dead key/iv variables
+    const updatedConfig = this.generateDeviceConfig({
+      deviceId,
+      organizationId: orgId,
+      timeForUnpaidUser: this.appConfig.defaultTimeForUnpaidUser,
+      blurStatus,
+      version: this.appConfig.defaultVersion,
+    });
+
+    // 🔍 ADD THIS TEMPORARILY to diagnose URL issues
+    this.logger.log(`[CONFIG DEBUG] HOST_FOR_NEST=${this.appConfig.hostForNest}`);
+    this.logger.log(`[CONFIG DEBUG] HOST_FOR_GO=${this.appConfig.hostForGo}`);
+    this.logger.log(`[CONFIG DEBUG] deviceId=${deviceId}, orgId=${orgId}`);
+
+    this.logger.log(`Config prepared successfully for ${selectedOS}`);
+
+    if (selectedOS === 'windows') {
+      return await this.handleWindowsInstallerWithAdmZip(res, organization, osInstallerPath, installerBasePath, updatedConfig);
+    } else if (selectedOS === 'macos') {
+      return await this.handleMacOSInstaller(res, organization, osInstallerPath, installerBasePath, updatedConfig);
+    } else if (selectedOS === 'linux') {
+      return await this.handleLinuxInstaller(res, organization, osInstallerPath, installerBasePath, updatedConfig);
+    }
+
+  } catch (error) {
+    this.logger.error('General error in downloadApplication:', error);
+    return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+      message: 'Failed to download the application!',
+      error: error.message,
+    });
   }
+}
 
   // COMMENTED OUT - GitHub Actions build status endpoint (no longer needed with direct zip distribution)
   // @Get('/build-status/:buildId')
